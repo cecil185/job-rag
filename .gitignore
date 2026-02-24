@@ -1,0 +1,24 @@
+.env
+docs/*
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+*.db
+*.sqlite
+data/
+.pytest_cache/
+.coverage
+htmlcov/
+.DS_Store
+# Poetry (lock file should be committed)
+TODO.txt
