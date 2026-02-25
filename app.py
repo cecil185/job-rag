@@ -96,8 +96,15 @@ def main():
         
         urls_text = st.text_area(
             "Job Posting URLs (one per line)",
-            height=150,
+            height=120,
             placeholder="https://example.com/job1\nhttps://example.com/job2"
+        )
+        
+        raw_text_paste = st.text_area(
+            "Raw job text (optional)",
+            height=200,
+            placeholder="Paste raw job posting text here. If provided, this is used for the first URL and the URL is not fetched.",
+            help="If you provide text here, it will be used for the first URL above and the app will skip fetching that URL."
         )
         
         role_tags = st.text_input("Role Tags (optional, comma-separated)")
@@ -106,10 +113,11 @@ def main():
             if urls_text:
                 urls = [url.strip() for url in urls_text.split("\n") if url.strip()]
                 tags = [tag.strip() for tag in role_tags.split(",")] if role_tags else None
+                raw_override = raw_text_paste.strip() if raw_text_paste else None
                 
                 with st.spinner("Processing jobs..."):
-                    logger.info("Processing %d job URL(s)", len(urls))
-                    results = st.session_state.workflow.process_job_links(urls, tags)
+                    logger.info("Processing %d job URL(s), raw_text_override=%s", len(urls), bool(raw_override))
+                    results = st.session_state.workflow.process_job_links(urls, tags, raw_text_override=raw_override)
                     logger.info("Process jobs finished: %d results", len(results))
                 
                 st.success(f"Processed {len(results)} jobs")

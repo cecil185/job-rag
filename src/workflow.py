@@ -84,25 +84,28 @@ class Workflow:
         self.style_rag.add_style_example(content, metadata)
         logger.info("approve_application_answer: job_id=%s done in %.2fs", job_id, time.perf_counter() - t0)
 
-    def process_job_links(self, urls: List[str], role_tags: List[str] = None) -> List[Dict]:
+    def process_job_links(self, urls: List[str], role_tags: List[str] = None, raw_text_override: str = None) -> List[Dict]:
         """
         Process job posting links.
         
         Args:
             urls: List of job posting URLs
             role_tags: Optional role tags for categorization
+            raw_text_override: If provided, used for the first URL and that URL is not fetched.
             
         Returns:
             List of job processing results
         """
         results = []
         t0 = time.perf_counter()
-        logger.info("process_job_links: %d URLs", len(urls))
+        logger.info("process_job_links: %d URLs, raw_text_override=%s", len(urls), bool(raw_text_override))
 
+        raw_override = (raw_text_override.strip() if raw_text_override and raw_text_override.strip() else None)
         with JobFetcher() as fetcher:
-            for url in urls:
+            for i, url in enumerate(urls):
                 try:
-                    result = self._process_single_job(url, fetcher, role_tags)
+                    raw_for_this = (raw_override if i == 0 else None)
+                    result = self._process_single_job(url, fetcher, role_tags, raw_text=raw_for_this)
                     results.append(result)
                 except Exception as e:
                     self.db.rollback()
@@ -115,10 +118,10 @@ class Workflow:
         logger.info("process_job_links: done in %.2fs, %d results", time.perf_counter() - t0, len(results))
         return results
     
-    def _process_single_job(self, url: str, fetcher: JobFetcher, role_tags: List[str] = None) -> Dict:
-        """Process a single job posting."""
+    def _process_single_job(self, url: str, fetcher: JobFetcher, role_tags: List[str] = None, raw_text: str = None) -> Dict:
+        """Process a single job posting. If raw_text is provided, skip fetching the URL and use it."""
         t0 = time.perf_counter()
-        logger.info("_process_single_job: url=%s start", url[:60])
+        logger.info("_process_single_job: url=%s start, raw_text=%s", url[:60], bool(raw_text))
 
         # Step 1: Check if job already exists
         existing_job = self.db.query(Job).filter(Job.url == url).first()
@@ -130,10 +133,14 @@ class Workflow:
                 "job_id": existing_job.id
             }
 
-        # Step 2: Fetch job posting
-        t_fetch = time.perf_counter()
-        job_data = fetcher.fetch(url)
-        logger.info("_process_single_job: fetch done in %.2fs", time.perf_counter() - t_fetch)
+        # Step 2: Fetch job posting or use provided raw_text
+        if raw_text is not None:
+            job_data = {"text": raw_text, "metadata": {}}
+            logger.info("_process_single_job: using provided raw_text (skip fetch)")
+        else:
+            t_fetch = time.perf_counter()
+            job_data = fetcher.fetch(url)
+            logger.info("_process_single_job: fetch done in %.2fs", time.perf_counter() - t_fetch)
 
         # Step 3: Store job
         job = Job(
@@ -145,7 +152,9 @@ class Workflow:
         self.db.commit()
         self.db.refresh(job)
 
-        # Step 4: Extract requirements
+        # Step 4: Extract requirements (raw_text must be non-empty for LLM)
+        if not (job.raw_text and job.raw_text.strip()):
+            raise ValueError("Job raw_text is empty; cannot extract requirements.")
         t_extract = time.perf_counter()
         requirements_obj = self.requirement_extractor.extract(job.raw_text)
         logger.info("_process_single_job: requirement_extractor.extract done in %.2fs", time.perf_counter() - t_extract)

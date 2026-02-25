@@ -61,6 +61,8 @@ class RequirementExtractor:
         """
         if not self.client:
             raise ValueError("OpenAI API key not configured")
+        if not job_text or not job_text.strip():
+            raise ValueError("Job text is empty; cannot extract requirements.")
 
         t0 = time.perf_counter()
         logger.info("RequirementExtractor.extract: calling LLM")
