@@ -1,8 +1,12 @@
 """Embedding generation utilities."""
+import logging
+import time
 from openai import OpenAI
 from typing import List
 import json
 from src.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingGenerator:
@@ -15,24 +19,26 @@ class EmbeddingGenerator:
         """Generate embedding for a single text."""
         if not self.client:
             raise ValueError("OpenAI API key not configured")
-        
+
+        t0 = time.perf_counter()
         response = self.client.embeddings.create(
             model=settings.embedding_model,
             input=text
         )
-        
+        logger.debug("embeddings.generate(1): %.2fs", time.perf_counter() - t0)
         return response.data[0].embedding
     
     def generate_batch(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for multiple texts."""
         if not self.client:
             raise ValueError("OpenAI API key not configured")
-        
+
+        t0 = time.perf_counter()
         response = self.client.embeddings.create(
             model=settings.embedding_model,
             input=texts
         )
-        
+        logger.info("embeddings.generate_batch(%d): %.2fs", len(texts), time.perf_counter() - t0)
         return [item.embedding for item in response.data]
     
     def embedding_to_text(self, embedding: List[float]) -> str:

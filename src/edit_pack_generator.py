@@ -1,10 +1,14 @@
 """Edit pack generator using Evidence and Style RAG."""
+import logging
+import time
 from openai import OpenAI
 from typing import List, Dict
 from src.database import Requirement, Job
 from src.evidence_rag import EvidenceRAG
 from src.style_rag import StyleRAG
 from src.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class EditPackGenerator:
@@ -30,13 +34,15 @@ class EditPackGenerator:
         """
         if not self.client:
             raise ValueError("OpenAI API key not configured")
-        
+
+        t0 = time.perf_counter()
         gaps = gaps or []
-        
+
         # Get style examples
-        job_context = job.title or "Job"
+        job_context = job.url or "Job"
+        logger.info("EditPackGenerator.generate: retrieving style examples")
         style_examples = self.style_rag.retrieve_style_examples(job_context, top_k=3)
-        
+
         # Build evidence context
         evidence_context = self._build_evidence_context(requirements, evidence_map)
         
@@ -53,7 +59,7 @@ Gap phrases (requirements with NO or weak evidence — do NOT invent bullets for
         
         prompt = f"""Generate a Resume Edit Pack for this job posting.
 
-Job: {job.title or 'Job'}
+Job: {job.url or 'Job'}
 
 Requirements:
 {self._format_requirements(requirements)}
@@ -74,6 +80,7 @@ Rules (strict):
 - Only use wording and facts that appear in the Evidence excerpts above. Do not invent metrics, technologies, or outcomes.
 - For requirements with no evidence, do not make up a bullet. You may reword evidence to include gap phrases as keywords where relevant."""
 
+        logger.info("EditPackGenerator.generate: calling LLM (edit pack)")
         response = self.client.chat.completions.create(
             model=settings.llm_model,
             messages=[
@@ -82,7 +89,7 @@ Rules (strict):
             ],
             temperature=0.3
         )
-        
+        logger.info("EditPackGenerator.generate: done in %.2fs", time.perf_counter() - t0)
         return response.choices[0].message.content
     
     def _format_requirements(self, requirements: List[Requirement]) -> str:

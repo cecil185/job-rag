@@ -1,4 +1,6 @@
 """Workflow orchestration."""
+import logging
+import time
 from sqlalchemy.orm import Session
 from typing import List, Dict
 from src.database import Job, Requirement, EditPack, get_db
@@ -9,6 +11,8 @@ from src.style_rag import StyleRAG
 from src.edit_pack_generator import EditPackGenerator
 from src.cover_letter_generator import CoverLetterGenerator
 from src.application_answer_generator import ApplicationAnswerGenerator
+
+logger = logging.getLogger(__name__)
 
 
 class Workflow:
@@ -27,44 +31,58 @@ class Workflow:
         """
         Generate a cover letter for a job (on demand). Uses job requirements and evidence RAG.
         """
+        t0 = time.perf_counter()
+        logger.info("generate_cover_letter: job_id=%s start", job_id)
         job = self.db.query(Job).filter(Job.id == job_id).first()
         if not job:
             raise ValueError(f"Job {job_id} not found")
         requirements = self.db.query(Requirement).filter(Requirement.job_id == job_id).all()
         evidence_map = self.evidence_rag.match_requirements(requirements)
-        return self.cover_letter_generator.generate(job, requirements, evidence_map)
+        letter = self.cover_letter_generator.generate(job, requirements, evidence_map)
+        logger.info("generate_cover_letter: job_id=%s done in %.2fs", job_id, time.perf_counter() - t0)
+        return letter
 
     def approve_cover_letter(self, job_id: int, content: str):
         """Add edited cover letter to Style RAG as a style example."""
+        t0 = time.perf_counter()
+        logger.info("approve_cover_letter: job_id=%s start", job_id)
         job = self.db.query(Job).filter(Job.id == job_id).first()
         if not job:
             raise ValueError(f"Job {job_id} not found")
         metadata = {
             "type": "cover_letter",
-            "job_title": job.title,
+            "job_url": job.url,
         }
         self.style_rag.add_style_example(content, metadata)
+        logger.info("approve_cover_letter: job_id=%s done in %.2fs", job_id, time.perf_counter() - t0)
 
     def generate_application_answer(self, job_id: int, question: str) -> str:
         """Generate an answer to a job application question (on demand)."""
+        t0 = time.perf_counter()
+        logger.info("generate_application_answer: job_id=%s start", job_id)
         job = self.db.query(Job).filter(Job.id == job_id).first()
         if not job:
             raise ValueError(f"Job {job_id} not found")
         requirements = self.db.query(Requirement).filter(Requirement.job_id == job_id).all()
         evidence_map = self.evidence_rag.match_requirements(requirements)
-        return self.application_answer_generator.generate(job, requirements, evidence_map, question)
+        answer = self.application_answer_generator.generate(job, requirements, evidence_map, question)
+        logger.info("generate_application_answer: job_id=%s done in %.2fs", job_id, time.perf_counter() - t0)
+        return answer
 
     def approve_application_answer(self, job_id: int, question: str, content: str):
         """Add edited application answer to Style RAG as a style example."""
+        t0 = time.perf_counter()
+        logger.info("approve_application_answer: job_id=%s start", job_id)
         job = self.db.query(Job).filter(Job.id == job_id).first()
         if not job:
             raise ValueError(f"Job {job_id} not found")
         metadata = {
             "type": "application_answer",
-            "job_title": job.title,
+            "job_url": job.url,
             "question": question[:500] if question else "",
         }
         self.style_rag.add_style_example(content, metadata)
+        logger.info("approve_application_answer: job_id=%s done in %.2fs", job_id, time.perf_counter() - t0)
 
     def process_job_links(self, urls: List[str], role_tags: List[str] = None) -> List[Dict]:
         """
@@ -78,7 +96,9 @@ class Workflow:
             List of job processing results
         """
         results = []
-        
+        t0 = time.perf_counter()
+        logger.info("process_job_links: %d URLs", len(urls))
+
         with JobFetcher() as fetcher:
             for url in urls:
                 try:
@@ -91,36 +111,44 @@ class Workflow:
                         "status": "error",
                         "error": str(e)
                     })
-        
+
+        logger.info("process_job_links: done in %.2fs, %d results", time.perf_counter() - t0, len(results))
         return results
     
     def _process_single_job(self, url: str, fetcher: JobFetcher, role_tags: List[str] = None) -> Dict:
         """Process a single job posting."""
+        t0 = time.perf_counter()
+        logger.info("_process_single_job: url=%s start", url[:60])
+
         # Step 1: Check if job already exists
         existing_job = self.db.query(Job).filter(Job.url == url).first()
         if existing_job:
+            logger.info("_process_single_job: url=%s exists, skip in %.2fs", url[:60], time.perf_counter() - t0)
             return {
                 "url": url,
                 "status": "exists",
                 "job_id": existing_job.id
             }
-        
+
         # Step 2: Fetch job posting
+        t_fetch = time.perf_counter()
         job_data = fetcher.fetch(url)
-        
+        logger.info("_process_single_job: fetch done in %.2fs", time.perf_counter() - t_fetch)
+
         # Step 3: Store job
         job = Job(
             url=url,
-            title=job_data.get("title"),
             raw_text=job_data.get("text"),
             meta_data=job_data.get("metadata", {})
         )
         self.db.add(job)
         self.db.commit()
         self.db.refresh(job)
-        
+
         # Step 4: Extract requirements
+        t_extract = time.perf_counter()
         requirements_obj = self.requirement_extractor.extract(job.raw_text)
+        logger.info("_process_single_job: requirement_extractor.extract done in %.2fs", time.perf_counter() - t_extract)
         requirements = []
         
         for req_item in requirements_obj.to_requirement_items():
@@ -136,15 +164,21 @@ class Workflow:
         self.db.commit()
         for req in requirements:
             self.db.refresh(req)
-        
+
         # Step 5: Evidence RAG retrieval
+        t_evidence = time.perf_counter()
         evidence_map = self.evidence_rag.match_requirements(requirements)
-        
+        logger.info("_process_single_job: evidence_rag.match_requirements done in %.2fs", time.perf_counter() - t_evidence)
+
         # Step 6: Calculate fit score
+        t_fit = time.perf_counter()
         fit_score, gaps = self.evidence_rag.calculate_fit_score(requirements)
-        
+        logger.info("_process_single_job: calculate_fit_score done in %.2fs", time.perf_counter() - t_fit)
+
         # Step 7: Generate edit pack
+        t_edit = time.perf_counter()
         edit_pack_content = self.edit_pack_generator.generate(job, requirements, evidence_map, gaps)
+        logger.info("_process_single_job: edit_pack_generator.generate done in %.2fs", time.perf_counter() - t_edit)
         
         # Step 8: Store edit pack
         edit_pack = EditPack(
@@ -157,7 +191,8 @@ class Workflow:
         self.db.add(edit_pack)
         self.db.commit()
         self.db.refresh(edit_pack)
-        
+
+        logger.info("_process_single_job: url=%s done in %.2fs total", url[:60], time.perf_counter() - t0)
         return {
             "url": url,
             "status": "success",
@@ -175,6 +210,8 @@ class Workflow:
             edit_pack_id: ID of edit pack to approve
             modified_content: Optional modified content (if user edited it)
         """
+        t0 = time.perf_counter()
+        logger.info("approve_edit_pack: edit_pack_id=%s start", edit_pack_id)
         edit_pack = self.db.query(EditPack).filter(EditPack.id == edit_pack_id).first()
         if not edit_pack:
             raise ValueError(f"Edit pack {edit_pack_id} not found")
@@ -186,7 +223,7 @@ class Workflow:
         job = edit_pack.job
         metadata = {
             "type": "resume-edit-pack",
-            "job_title": job.title,
+            "job_url": job.url,
             "fit_score": edit_pack.fit_score
         }
         self.style_rag.add_style_example(content_to_store, metadata)
@@ -196,19 +233,21 @@ class Workflow:
         if modified_content:
             edit_pack.content = modified_content
         self.db.commit()
+        logger.info("approve_edit_pack: edit_pack_id=%s done in %.2fs", edit_pack_id, time.perf_counter() - t0)
     
     def get_ranked_jobs(self) -> List[Dict]:
         """Get jobs ranked by fit score (all processed jobs, not just pending)."""
+        t0 = time.perf_counter()
         jobs = self.db.query(Job).join(EditPack).order_by(
             EditPack.fit_score.desc()
         ).all()
-        
+        logger.info("get_ranked_jobs: query done in %.2fs, %d jobs", time.perf_counter() - t0, len(jobs))
+
         results = []
         for job in jobs:
             edit_pack = job.edit_packs[0] if job.edit_packs else None
             results.append({
                 "job_id": job.id,
-                "title": job.title,
                 "url": job.url,
                 "fit_score": edit_pack.fit_score if edit_pack else 0.0,
                 "gaps": edit_pack.gap_list if edit_pack else [],

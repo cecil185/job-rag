@@ -1,10 +1,14 @@
 """Cover letter generator using Evidence and Style RAG."""
+import logging
+import time
 from openai import OpenAI
 from typing import List, Dict
 from src.database import Requirement, Job
 from src.evidence_rag import EvidenceRAG
 from src.style_rag import StyleRAG
 from src.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class CoverLetterGenerator:
@@ -30,14 +34,16 @@ class CoverLetterGenerator:
         if not self.client:
             raise ValueError("OpenAI API key not configured")
 
-        job_context = job.title or "Job"
+        t0 = time.perf_counter()
+        job_context = job.url or "Job"
+        logger.info("CoverLetterGenerator.generate: retrieving style examples")
         style_examples = self.style_rag.retrieve_style_examples(job_context, top_k=3)
         evidence_context = self._build_evidence_context(requirements, evidence_map)
         style_context = "\n\n".join([ex["content"] for ex in style_examples]) if style_examples else ""
 
         prompt = f"""Write a professional cover letter for this job application.
 
-Job: {job.title or 'Job'}
+Job: {job.url or 'Job'}
 
 Key requirements from the posting:
 {self._format_requirements(requirements)}
@@ -55,6 +61,7 @@ Instructions:
 - Be concise; avoid generic fluff
 - Output the letter only (no meta commentary). You may use a simple greeting like "Dear Hiring Manager," and sign off with "[Your Name]" or similar."""
 
+        logger.info("CoverLetterGenerator.generate: calling LLM")
         response = self.client.chat.completions.create(
             model=settings.llm_model,
             messages=[
@@ -63,7 +70,7 @@ Instructions:
             ],
             temperature=0.6
         )
-
+        logger.info("CoverLetterGenerator.generate: done in %.2fs", time.perf_counter() - t0)
         return response.choices[0].message.content
 
     def _format_requirements(self, requirements: List[Requirement]) -> str:

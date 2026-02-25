@@ -1,5 +1,6 @@
 """Streamlit UI for Job RAG."""
 import io
+import logging
 import streamlit as st
 from sqlalchemy.orm import Session
 from src.database import get_db, init_db, Job, EditPack
@@ -8,18 +9,21 @@ from src.evidence_rag import EvidenceRAG
 from scripts.pdf_to_txt import pdf_to_text
 import sys
 
-# Initialize database
-init_db()
+# Configure logging so INFO shows where time is spent
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="Job RAG - Resume Editor", layout="wide")
 
 # Initialize session state
 if "workflow" not in st.session_state:
+    logger.info("Creating workflow and db session")
     db = next(get_db())
     st.session_state.workflow = Workflow(db)
     st.session_state.db = db
 
 if "evidence_rag" not in st.session_state:
+    logger.info("Creating EvidenceRAG")
     st.session_state.evidence_rag = EvidenceRAG(st.session_state.db)
 
 
@@ -63,11 +67,13 @@ def main():
                 st.error("Please enter a Source ID")
             elif evidence_text:
                 with st.spinner("Processing and storing evidence..."):
+                    logger.info("Adding evidence (source_id=%s, is_resume=%s)", evidence_id.strip(), is_resume)
                     st.session_state.evidence_rag.add_evidence(
                         evidence_text,
                         evidence_id.strip(),
                         is_resume=is_resume
                     )
+                    logger.info("Evidence added successfully")
                 st.success("✓ Evidence added!")
                 st.info(f"Your content has been chunked and stored in the Evidence RAG database.")
             else:
@@ -102,7 +108,9 @@ def main():
                 tags = [tag.strip() for tag in role_tags.split(",")] if role_tags else None
                 
                 with st.spinner("Processing jobs..."):
+                    logger.info("Processing %d job URL(s)", len(urls))
                     results = st.session_state.workflow.process_job_links(urls, tags)
+                    logger.info("Process jobs finished: %d results", len(results))
                 
                 st.success(f"Processed {len(results)} jobs")
                 
@@ -122,11 +130,13 @@ def main():
         if st.button("Refresh Rankings"):
             st.rerun()
         
+        logger.info("Fetching ranked jobs")
         ranked_jobs = st.session_state.workflow.get_ranked_jobs()
+        logger.info("Ranked jobs: %d", len(ranked_jobs) if ranked_jobs else 0)
         
         if ranked_jobs:
             for i, job in enumerate(ranked_jobs, 1):
-                with st.expander(f"#{i} {job['title']} - Fit: {job['fit_score']:.2%}"):
+                with st.expander(f"#{i} {job['url']} - Fit: {job['fit_score']:.2%}"):
                     st.write(f"**URL:** {job['url']}")
                     st.write(f"**Fit Score:** {job['fit_score']:.2%}")
                     
@@ -143,7 +153,9 @@ def main():
                     if st.button("📄 Generate cover letter", key=f"btn_cl_{job['job_id']}"):
                         with st.spinner("Generating cover letter..."):
                             try:
+                                logger.info("Generating cover letter for job_id=%s", job["job_id"])
                                 letter = st.session_state.workflow.generate_cover_letter(job["job_id"])
+                                logger.info("Cover letter generated for job_id=%s", job["job_id"])
                                 if "cover_letters" not in st.session_state:
                                     st.session_state.cover_letters = {}
                                 st.session_state.cover_letters[job["job_id"]] = letter
@@ -191,7 +203,9 @@ def main():
                         else:
                             with st.spinner("Generating answer..."):
                                 try:
+                                    logger.info("Generating application answer for job_id=%s", job["job_id"])
                                     answer = st.session_state.workflow.generate_application_answer(job["job_id"], app_question.strip())
+                                    logger.info("Application answer generated for job_id=%s", job["job_id"])
                                     if "app_answers" not in st.session_state:
                                         st.session_state.app_answers = {}
                                     st.session_state.app_answers[job["job_id"]] = {"question": app_question.strip(), "answer": answer}
@@ -233,6 +247,7 @@ def main():
         st.header("Review and Approve Edit Packs")
         
         # Get pending edit packs
+        logger.info("Loading pending edit packs")
         pending_packs = st.session_state.db.query(EditPack).filter(
             EditPack.approved == 0
         ).join(Job).order_by(EditPack.fit_score.desc()).all()
@@ -240,7 +255,7 @@ def main():
         if pending_packs:
             for pack in pending_packs:
                 job = pack.job
-                with st.expander(f"{job.title} - Fit: {pack.fit_score:.2%}"):
+                with st.expander(f"{job.url} - Fit: {pack.fit_score:.2%}"):
                     st.write(f"**Job URL:** {job.url}")
                     st.write(f"**Fit Score:** {pack.fit_score:.2%}")
                     

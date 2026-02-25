@@ -1,9 +1,12 @@
 """Database setup and models."""
+import logging
 from sqlalchemy import create_engine, Column, Integer, String, Text, Float, DateTime, JSON, Boolean, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 from src.config import settings
+
+logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
@@ -14,7 +17,6 @@ class Job(Base):
     
     id = Column(Integer, primary_key=True)
     url = Column(String, unique=True, nullable=False)
-    title = Column(String)
     raw_text = Column(Text)
     meta_data = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy conflict
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -102,15 +104,25 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def init_db():
     """Initialize database tables and pgvector extension."""
     from sqlalchemy import text
-    
+
+    logger.info("init_db: creating tables")
     # Create tables
     Base.metadata.create_all(bind=engine)
-    
+
+    # Drop legacy title column from jobs if present (replaced by url for display)
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE jobs DROP COLUMN IF EXISTS title"))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+
     # Enable pgvector extension
+    logger.info("init_db: enabling pgvector extension")
     with engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         conn.commit()
-    
+
     # Create vector indexes (using expression indexes on cast)
     with engine.connect() as conn:
         try:
@@ -129,8 +141,9 @@ def init_db():
                 WHERE embedding IS NOT NULL
             """))
             conn.commit()
+            logger.info("init_db: vector indexes created")
         except Exception as e:
-            print(f"Note: Vector indexes - {e}. Queries will still work but may be slower.")
+            logger.warning("init_db: vector indexes - %s. Queries will still work but may be slower.", e)
 
 
 def get_db():

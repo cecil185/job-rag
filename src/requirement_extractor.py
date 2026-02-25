@@ -1,9 +1,13 @@
 """Requirement extractor using LLM."""
+import logging
+import time
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from openai import OpenAI
 from src.config import settings
 import json
+
+logger = logging.getLogger(__name__)
 
 
 class RequirementItem(BaseModel):
@@ -57,7 +61,9 @@ class RequirementExtractor:
         """
         if not self.client:
             raise ValueError("OpenAI API key not configured")
-        
+
+        t0 = time.perf_counter()
+        logger.info("RequirementExtractor.extract: calling LLM")
         prompt = f"""Extract structured requirements from this job posting. Be thorough and specific.
 
 Job Posting:
@@ -81,7 +87,7 @@ Each field should be a list of strings. Be specific and comprehensive."""
             response_format={"type": "json_object"},
             temperature=0.3
         )
-        
+        logger.info("RequirementExtractor.extract: done in %.2fs", time.perf_counter() - t0)
         result_text = response.choices[0].message.content
         
         try:

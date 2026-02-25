@@ -1,4 +1,6 @@
 """Evidence RAG for retrieving proof points."""
+import logging
+import time
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Dict, Tuple
@@ -6,6 +8,8 @@ from src.database import EvidenceChunk, EvidenceMatch, Requirement
 from src.embeddings import EmbeddingGenerator
 from src.chunker import Chunker
 import json
+
+logger = logging.getLogger(__name__)
 
 
 class EvidenceRAG:
@@ -26,6 +30,8 @@ class EvidenceRAG:
             metadata: Optional additional metadata.
             is_resume: If True, this is the base resume; any existing resume chunks are deleted first.
         """
+        t0 = time.perf_counter()
+        logger.info("add_evidence: source_id=%s is_resume=%s start", source_id, is_resume)
         if is_resume:
             # Delete existing resume chunks (and their matches) so upload replaces the resume
             resume_chunk_ids = [c.id for c in self.db.query(EvidenceChunk).filter(EvidenceChunk.is_resume == True).all()]
@@ -33,17 +39,21 @@ class EvidenceRAG:
                 self.db.query(EvidenceMatch).filter(EvidenceMatch.evidence_id.in_(resume_chunk_ids)).delete(synchronize_session=False)
                 self.db.query(EvidenceChunk).filter(EvidenceChunk.is_resume == True).delete(synchronize_session=False)
             self.db.commit()
-        
+
         # Chunk the text
+        t_chunk = time.perf_counter()
         chunks = self.chunker.chunk_by_sentences(text, metadata={
             "source_id": source_id,
             **(metadata or {})
         })
-        
+        logger.info("add_evidence: chunked into %d chunks in %.2fs", len(chunks), time.perf_counter() - t_chunk)
+
         # Generate embeddings and store
-        for chunk in chunks:
+        for i, chunk in enumerate(chunks):
+            if i == 0 or (i + 1) % 5 == 0 or i == len(chunks) - 1:
+                logger.info("add_evidence: embedding chunk %d/%d", i + 1, len(chunks))
             embedding = self.embedding_gen.generate(chunk["content"])
-            
+
             evidence_chunk = EvidenceChunk(
                 source_id=source_id,
                 content=chunk["content"],
@@ -53,8 +63,9 @@ class EvidenceRAG:
             )
             
             self.db.add(evidence_chunk)
-        
+
         self.db.commit()
+        logger.info("add_evidence: source_id=%s done in %.2fs (%d chunks)", source_id, time.perf_counter() - t0, len(chunks))
     
     def retrieve(self, query_text: str, top_k: int) -> List[Dict]:
         """
@@ -67,7 +78,7 @@ class EvidenceRAG:
         Returns:
             List of dicts with 'content', 'source_id', 'similarity_score', 'metadata'
         """
-        
+        t0 = time.perf_counter()
         # Generate query embedding
         query_embedding = self.embedding_gen.generate(query_text)
         embedding_json = json.dumps(query_embedding)
@@ -105,7 +116,8 @@ class EvidenceRAG:
                 "metadata": row.meta_data or {},
                 "is_resume": bool(row.is_resume)
             })
-        
+
+        logger.info("retrieve: top_k=%d done in %.2fs", top_k, time.perf_counter() - t0)
         return results
     
     def match_requirements(self, requirements: List[Requirement], top_k: int = None) -> Dict[int, List[Dict]]:
@@ -120,8 +132,10 @@ class EvidenceRAG:
             Dict mapping requirement_id -> list of evidence matches
         """
         top_k = top_k or 5
+        t0 = time.perf_counter()
+        logger.info("match_requirements: %d requirements top_k=%d start", len(requirements), top_k)
         evidence_map = {}
-        
+
         for req in requirements:
             # Retrieve evidence
             evidence = self.retrieve(req.text, top_k=top_k)
@@ -136,8 +150,9 @@ class EvidenceRAG:
                 self.db.add(match)
             
             evidence_map[req.id] = evidence
-        
+
         self.db.commit()
+        logger.info("match_requirements: done in %.2fs", time.perf_counter() - t0)
         return evidence_map
     
     def calculate_fit_score(
@@ -163,10 +178,12 @@ class EvidenceRAG:
         Returns:
             Tuple of (fit_score, gap_list)
         """
+        t0 = time.perf_counter()
         total_reqs = len(requirements)
         if total_reqs == 0:
             return 0.0, []
-        
+
+        logger.info("calculate_fit_score: %d requirements", total_reqs)
         matched_reqs = 0
         gaps = []
         
@@ -187,5 +204,5 @@ class EvidenceRAG:
                 gaps.append(req.text)
         
         fit_score = matched_reqs / total_reqs if total_reqs > 0 else 0.0
-        
+        logger.info("calculate_fit_score: done in %.2fs score=%.2f gaps=%d", time.perf_counter() - t0, fit_score, len(gaps))
         return fit_score, gaps

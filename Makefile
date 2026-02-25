@@ -3,7 +3,7 @@ build:
 
 up:
 	docker-compose down
-	docker-compose up -d
+	docker-compose up
 # app available at http://localhost:8501
 
 down:

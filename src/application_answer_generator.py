@@ -1,10 +1,14 @@
 """Application question answer generator using Evidence and Style RAG."""
+import logging
+import time
 from openai import OpenAI
 from typing import List, Dict
 from src.database import Requirement, Job
 from src.evidence_rag import EvidenceRAG
 from src.style_rag import StyleRAG
 from src.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class ApplicationAnswerGenerator:
@@ -37,14 +41,16 @@ class ApplicationAnswerGenerator:
         if not self.client:
             raise ValueError("OpenAI API key not configured")
 
-        job_context = job.title or "Job"
+        t0 = time.perf_counter()
+        job_context = job.url or "Job"
+        logger.info("ApplicationAnswerGenerator.generate: retrieving style examples")
         style_examples = self.style_rag.retrieve_style_examples(job_context, top_k=3)
         evidence_context = self._build_evidence_context(requirements, evidence_map)
         style_context = "\n\n".join([ex["content"] for ex in style_examples]) if style_examples else ""
 
         prompt = f"""Answer the following job application question. Be specific and ground your answer in the candidate evidence below.
 
-Job: {job.title or 'Job'}
+Job: {job.url or 'Job'}
 
 Application question:
 {question}
@@ -64,6 +70,7 @@ Instructions:
 - Match the role language where relevant
 - Output only the answer, no preamble or meta commentary."""
 
+        logger.info("ApplicationAnswerGenerator.generate: calling LLM")
         response = self.client.chat.completions.create(
             model=settings.llm_model,
             messages=[
@@ -72,7 +79,7 @@ Instructions:
             ],
             temperature=0.6
         )
-
+        logger.info("ApplicationAnswerGenerator.generate: done in %.2fs", time.perf_counter() - t0)
         return response.choices[0].message.content
 
     def _format_requirements(self, requirements: List[Requirement]) -> str:

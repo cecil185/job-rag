@@ -1,10 +1,14 @@
 """Style RAG for learning and applying writing style."""
+import logging
+import time
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Dict
 from src.database import StyleExample
 from src.embeddings import EmbeddingGenerator
 import json
+
+logger = logging.getLogger(__name__)
 
 
 class StyleRAG:
@@ -20,10 +24,12 @@ class StyleRAG:
         
         Args:
             content: Approved edit pack content
-            metadata: Optional metadata (job title, etc.)
+            metadata: Optional metadata (job url, etc.)
         """
+        t0 = time.perf_counter()
+        logger.info("add_style_example: generating embedding")
         embedding = self.embedding_gen.generate(content)
-        
+
         style_example = StyleExample(
             content=content,
             embedding=self.embedding_gen.embedding_to_text(embedding),
@@ -32,7 +38,8 @@ class StyleRAG:
         
         self.db.add(style_example)
         self.db.commit()
-    
+        logger.info("add_style_example: done in %.2fs", time.perf_counter() - t0)
+
     def retrieve_style_examples(self, query_text: str, top_k: int = None) -> List[Dict]:
         """
         Retrieve similar style examples.
@@ -45,7 +52,7 @@ class StyleRAG:
             List of dicts with 'content', 'similarity_score', 'metadata'
         """
         top_k = top_k or 3
-        
+        t0 = time.perf_counter()
         # Generate query embedding
         query_embedding = self.embedding_gen.generate(query_text)
         embedding_json = json.dumps(query_embedding)
@@ -79,5 +86,6 @@ class StyleRAG:
                 "similarity_score": float(row.similarity_score),
                 "metadata": row.meta_data or {}
             })
-        
+
+        logger.info("retrieve_style_examples: top_k=%d done in %.2fs", top_k, time.perf_counter() - t0)
         return results
