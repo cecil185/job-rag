@@ -58,8 +58,8 @@ Instructions:
 - 3–4 short paragraphs: hook, why them, why you (with specific evidence), closing
 - Weave in concrete proof points from the evidence above; do not make unsupported claims
 - Match the role language where it fits
-- Be concise; avoid generic fluff
-- Output the letter only (no meta commentary). You may use a simple greeting like "Dear Hiring Manager," and sign off with "[Your Name]" or similar."""
+- Stay focused - talk about only 1 project per paragraph - 1-3 projects in total.
+- Output the letter only (no meta commentary). No greeting or sign off."""
 
         logger.info("CoverLetterGenerator.generate: calling LLM")
         response = self.client.chat.completions.create(
