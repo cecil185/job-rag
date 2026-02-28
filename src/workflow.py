@@ -53,7 +53,7 @@ class Workflow:
             "type": "cover_letter",
             "job_url": job.url,
         }
-        self.style_rag.add_style_example(content, metadata)
+        self.style_rag.add_style_example_chunked(content, metadata)
         logger.info("approve_cover_letter: job_id=%s done in %.2fs", job_id, time.perf_counter() - t0)
 
     def generate_application_answer(self, job_id: int, question: str) -> str:
@@ -81,7 +81,7 @@ class Workflow:
             "job_url": job.url,
             "question": question[:500] if question else "",
         }
-        self.style_rag.add_style_example(content, metadata)
+        self.style_rag.add_style_example_chunked(content, metadata)
         logger.info("approve_application_answer: job_id=%s done in %.2fs", job_id, time.perf_counter() - t0)
 
     def process_job_links(self, urls: List[str], role_tags: List[str] = None, raw_text_override: str = None) -> List[Dict]:
@@ -235,7 +235,7 @@ class Workflow:
             "job_url": job.url,
             "fit_score": edit_pack.fit_score
         }
-        self.style_rag.add_style_example(content_to_store, metadata)
+        self.style_rag.add_style_example_chunked(content_to_store, metadata)
         
         # Mark as approved
         edit_pack.approved = 1
