@@ -120,7 +120,8 @@ def main():
                     results = st.session_state.workflow.process_job_links(urls, tags, raw_text_override=raw_override)
                     logger.info("Process jobs finished: %d results", len(results))
                 
-                st.success(f"Processed {len(results)} jobs")
+                success_count = sum(1 for r in results if r.get("status") == "success")
+                st.success(f"Processed {success_count} jobs")
                 
                 for result in results:
                     if result["status"] == "success":

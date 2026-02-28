@@ -6,8 +6,31 @@ from typing import List, Optional
 from openai import OpenAI
 from src.config import settings
 import json
+import tiktoken
 
 logger = logging.getLogger(__name__)
+
+# Max input tokens for the LLM request (system + user message). Exceeding prompts raise before submit.
+MAX_PROMPT_TOKENS = 8000
+
+# Requirement text containing any of these words (case-insensitive) is filtered out (no LLM).
+EXCLUDED_REQUIREMENT_WORDS = frozenset({
+    "python", "diversity", "pay", "benefits", "equity", "privacy", "candidate", "remote work"
+})
+
+
+def _should_exclude_requirement(text: str) -> bool:
+    """True if requirement text contains any excluded word (case-insensitive)."""
+    lower = (text or "").lower()
+    return any(word in lower for word in EXCLUDED_REQUIREMENT_WORDS)
+
+
+def _filter_requirements_dict(data: dict) -> dict:
+    """Filter out list entries that contain any excluded word. Modifies and returns data."""
+    for key in ("skills", "responsibilities", "must_haves", "keywords"):
+        if key in data and isinstance(data[key], list):
+            data[key] = [s for s in data[key] if isinstance(s, str) and not _should_exclude_requirement(s)]
+    return data
 
 
 class RequirementItem(BaseModel):
@@ -43,11 +66,16 @@ class Requirements(BaseModel):
         return items
 
 
+def _count_tokens(text: str, encoding: tiktoken.Encoding) -> int:
+    return len(encoding.encode(text))
+
+
 class RequirementExtractor:
     """Extracts structured requirements from job postings."""
     
     def __init__(self):
         self.client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
+        self._encoding = tiktoken.get_encoding("cl100k_base")
     
     def extract(self, job_text: str) -> Requirements:
         """
@@ -66,10 +94,12 @@ class RequirementExtractor:
 
         t0 = time.perf_counter()
         logger.info("RequirementExtractor.extract: calling LLM")
-        prompt = f"""Extract structured requirements from this job posting. Be thorough and specific.
+
+        system_content = "You are an expert at analyzing job postings and extracting structured requirements. Always return valid JSON."
+        template = """Extract structured requirements from this job posting. Be thorough and specific.
 
 Job Posting:
-{job_text[:8000]}  # Limit to avoid token limits
+{job_text}
 
 Extract:
 1. Technical skills and technologies (programming languages, frameworks, tools)
@@ -80,12 +110,22 @@ Extract:
 Return a JSON object with these fields: skills, responsibilities, must_haves, keywords.
 Each field should be a list of strings. Be specific and comprehensive."""
 
+        prompt = template.format(job_text=job_text)
+        messages = [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": prompt},
+        ]
+        total_tokens = sum(_count_tokens(m["content"], self._encoding) for m in messages)
+        logging.info(f"total_tokens: {total_tokens}")
+        if total_tokens > MAX_PROMPT_TOKENS:
+            raise ValueError(
+                f"Prompt exceeds max token limit: {total_tokens} > {MAX_PROMPT_TOKENS}. "
+                "Reduce job text or increase MAX_PROMPT_TOKENS."
+            )
+
         response = self.client.chat.completions.create(
             model=settings.llm_model,
-            messages=[
-                {"role": "system", "content": "You are an expert at analyzing job postings and extracting structured requirements. Always return valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
+            messages=messages,
             response_format={"type": "json_object"},
             temperature=0.3
         )
@@ -94,6 +134,7 @@ Each field should be a list of strings. Be specific and comprehensive."""
         
         try:
             result_dict = json.loads(result_text)
+            _filter_requirements_dict(result_dict)
             return Requirements(**result_dict)
         except Exception as e:
             # Fallback: try to parse manually

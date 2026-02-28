@@ -166,7 +166,14 @@ class Workflow:
         if not (job.raw_text and job.raw_text.strip()):
             raise ValueError("Job raw_text is empty; cannot extract requirements.")
         t_extract = time.perf_counter()
-        requirements_obj = self.requirement_extractor.extract(job.raw_text)
+        try:
+            requirements_obj = self.requirement_extractor.extract(job.raw_text)
+        except ValueError as e:
+            if "max token limit" in str(e) or "MAX_PROMPT_TOKENS" in str(e):
+                self.db.delete(job)
+                self.db.commit()
+                logger.warning("_process_single_job: deleted job id=%s due to token limit", job.id)
+            raise
         logger.info("_process_single_job: requirement_extractor.extract done in %.2fs", time.perf_counter() - t_extract)
         requirements = []
         

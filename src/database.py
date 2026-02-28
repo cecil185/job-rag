@@ -30,7 +30,7 @@ class Requirement(Base):
     __tablename__ = "requirements"
     
     id = Column(Integer, primary_key=True)
-    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    job_id = Column(Integer, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
     category = Column(String)  # skills, responsibilities, must_haves, keywords
     text = Column(Text, nullable=False)
     priority = Column(String)  # must_have, nice_to_have
@@ -85,7 +85,7 @@ class EditPack(Base):
     __tablename__ = "edit_packs"
     
     id = Column(Integer, primary_key=True)
-    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    job_id = Column(Integer, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
     content = Column(Text, nullable=False)  # Markdown format
     fit_score = Column(Float)
     gap_list = Column(JSON)
