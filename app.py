@@ -158,42 +158,43 @@ def main():
 
                     st.divider()
                     cover_key = f"cover_letter_{job['job_id']}"
-                    if st.button("📄 Generate cover letter", key=f"btn_cl_{job['job_id']}"):
-                        with st.spinner("Generating cover letter..."):
+                    if "cover_letter_revisions" not in st.session_state:
+                        st.session_state.cover_letter_revisions = {}
+                    if st.button("📝 Generate cover letter", key=f"btn_cl_rev_{job['job_id']}"):
+                        with st.spinner("Generating draft, then critique and revision..."):
                             try:
-                                logger.info("Generating cover letter for job_id=%s", job["job_id"])
-                                letter = st.session_state.workflow.generate_cover_letter(job["job_id"])
-                                logger.info("Cover letter generated for job_id=%s", job["job_id"])
-                                if "cover_letters" not in st.session_state:
-                                    st.session_state.cover_letters = {}
-                                st.session_state.cover_letters[job["job_id"]] = letter
+                                logger.info("Generate with revision for job_id=%s", job["job_id"])
+                                result = st.session_state.workflow.generate_cover_letter_with_revision(job["job_id"])
+                                st.session_state.cover_letter_revisions[job["job_id"]] = result
                                 st.rerun()
                             except Exception as e:
                                 st.error(str(e))
-                    if "cover_letters" in st.session_state and job["job_id"] in st.session_state.cover_letters:
-                        st.subheader("Cover letter")
-                        letter = st.session_state.cover_letters[job["job_id"]]
+                    if job["job_id"] in st.session_state.cover_letter_revisions:
+                        rev = st.session_state.cover_letter_revisions[job["job_id"]]
+                        with st.expander("📝 Draft"):
+                            st.write(rev["draft"])
+                        with st.expander("🔍 Critique"):
+                            st.write(rev["critique"])
+                        st.subheader("Revised cover letter")
                         edited = st.text_area(
-                            "Edit cover letter (optional)",
-                            value=letter,
+                            "Edit revised letter (optional)",
+                            value=rev["revised"],
                             height=320,
                             key=cover_key
                         )
-                        if edited != letter:
-                            st.session_state.cover_letters[job["job_id"]] = edited
                         col1, col2 = st.columns(2)
                         with col1:
                             if st.button("✅ Approve (add to Style RAG)", key=f"cl_approve_{job['job_id']}", type="primary"):
                                 try:
                                     st.session_state.workflow.approve_cover_letter(job["job_id"], edited)
-                                    del st.session_state.cover_letters[job["job_id"]]
+                                    del st.session_state.cover_letter_revisions[job["job_id"]]
                                     st.success("Cover letter added to Style RAG!")
                                     st.rerun()
                                 except Exception as e:
                                     st.error(str(e))
                         with col2:
                             if st.button("❌ Reject (discard)", key=f"cl_reject_{job['job_id']}"):
-                                del st.session_state.cover_letters[job["job_id"]]
+                                del st.session_state.cover_letter_revisions[job["job_id"]]
                                 st.rerun()
 
                     st.divider()

@@ -2,7 +2,7 @@
 import logging
 import time
 from sqlalchemy.orm import Session
-from typing import List, Dict
+from typing import List, Dict, Any
 from src.database import Job, Requirement, EditPack, get_db
 from src.job_fetcher import JobFetcher
 from src.requirement_extractor import RequirementExtractor
@@ -10,6 +10,8 @@ from src.evidence_rag import EvidenceRAG
 from src.style_rag import StyleRAG
 from src.edit_pack_generator import EditPackGenerator
 from src.cover_letter_generator import CoverLetterGenerator
+from src.cover_letter_critic import CoverLetterCritic
+from src.cover_letter_reviser import CoverLetterReviser
 from src.application_answer_generator import ApplicationAnswerGenerator
 
 logger = logging.getLogger(__name__)
@@ -25,22 +27,30 @@ class Workflow:
         self.style_rag = StyleRAG(db)
         self.edit_pack_generator = EditPackGenerator(self.evidence_rag, self.style_rag)
         self.cover_letter_generator = CoverLetterGenerator(self.evidence_rag, self.style_rag)
+        self.cover_letter_critic = CoverLetterCritic()
+        self.cover_letter_reviser = CoverLetterReviser()
         self.application_answer_generator = ApplicationAnswerGenerator(self.evidence_rag, self.style_rag)
 
-    def generate_cover_letter(self, job_id: int) -> str:
+    def generate_cover_letter_with_revision(self, job_id: int) -> Dict[str, Any]:
         """
-        Generate a cover letter for a job (on demand). Uses job requirements and evidence RAG.
+        Generate draft, run critic, then reviser; return draft, critique, and revised letter.
         """
         t0 = time.perf_counter()
-        logger.info("generate_cover_letter: job_id=%s start", job_id)
+        logger.info("generate_cover_letter_with_revision: job_id=%s start", job_id)
         job = self.db.query(Job).filter(Job.id == job_id).first()
         if not job:
             raise ValueError(f"Job {job_id} not found")
         requirements = self.db.query(Requirement).filter(Requirement.job_id == job_id).all()
         evidence_map = self.evidence_rag.match_requirements(requirements)
-        letter = self.cover_letter_generator.generate(job, requirements, evidence_map)
-        logger.info("generate_cover_letter: job_id=%s done in %.2fs", job_id, time.perf_counter() - t0)
-        return letter
+        draft = self.cover_letter_generator.generate(job, requirements, evidence_map)
+        critique = self.cover_letter_critic.critique(draft, job, requirements, evidence_map)
+        revised = self.cover_letter_reviser.revise(draft, critique, job, requirements, evidence_map)
+        logger.info(
+            "generate_cover_letter_with_revision: job_id=%s done in %.2fs",
+            job_id,
+            time.perf_counter() - t0,
+        )
+        return {"draft": draft, "critique": critique, "revised": revised}
 
     def approve_cover_letter(self, job_id: int, content: str):
         """Add edited cover letter to Style RAG as a style example."""
