@@ -3,7 +3,7 @@ import json
 import logging
 import re
 import time
-from typing import Dict
+from typing import Any
 from typing import List
 
 from sqlalchemy import text
@@ -46,7 +46,7 @@ def chunk_by_sections(text: str) -> List[str]:
 class StyleRAG:
     """Style RAG for learning and applying writing style."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session) -> None:
         self.db = db
         self.embedding_gen = EmbeddingGenerator()
 
@@ -65,7 +65,12 @@ class StyleRAG:
             return chunks if chunks else chunk_by_paragraphs(content)
         return [content.strip()]
 
-    def add_style_example_chunked(self, content: str, metadata: dict = None, chunk_type: str = "cover_letter"):
+    def add_style_example_chunked(
+        self,
+        content: str,
+        metadata: dict[str, Any] | None = None,
+        chunk_type: str = "cover_letter",
+    ) -> None:
         """
         Chunk content and add each chunk as a separate style example row.
         - cover_letter / application_answer: one row per paragraph.
@@ -88,7 +93,9 @@ class StyleRAG:
         self.db.commit()
         logger.info("add_style_example_chunked: done in %.2fs", time.perf_counter() - t0)
 
-    def retrieve_style_examples(self, query_text: str, top_k: int = None) -> List[Dict]:
+    def retrieve_style_examples(
+        self, query_text: str, top_k: int | None = None
+    ) -> List[dict[str, Any]]:
         """
         Retrieve similar style examples.
 

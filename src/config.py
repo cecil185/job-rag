@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic_settings import BaseSettings
 
 
-class Settings(BaseSettings):
+class Settings(BaseSettings):  # type: ignore[misc]
     """Application settings."""
 
     database_url: str = "postgresql://jobrag:jobrag_password@postgres:5432/jobrag_db"

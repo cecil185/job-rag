@@ -2,7 +2,7 @@
 import logging
 import re
 import time
-from typing import Dict
+from typing import Any
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 class JobFetcher:
     """Fetches and extracts text from job postings."""
 
-    def __init__(self):
-        self.playwright = None
-        self.browser = None
+    def __init__(self) -> None:
+        self.playwright: Any = None
+        self.browser: Any = None
 
-    def __enter__(self):
+    def __enter__(self) -> "JobFetcher":
         t0 = time.perf_counter()
         logger.info("JobFetcher: starting Playwright browser")
         self.playwright = sync_playwright().start()
@@ -29,13 +29,13 @@ class JobFetcher:
         logger.info("JobFetcher: browser ready in %.2fs", time.perf_counter() - t0)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         if self.browser:
             self.browser.close()
         if self.playwright:
             self.playwright.stop()
 
-    def fetch(self, url: str) -> Dict[str, Optional[str]]:
+    def fetch(self, url: str) -> dict[str, Any]:
         """
         Fetch job posting from URL.
 
@@ -56,7 +56,7 @@ class JobFetcher:
         logger.info("fetch: web url=%s done in %.2fs", url[:50], time.perf_counter() - t0)
         return out
 
-    def _fetch_pdf(self, url: str) -> Dict[str, Optional[str]]:
+    def _fetch_pdf(self, url: str) -> dict[str, Any]:
         """Extract text from PDF."""
         try:
             response = httpx.get(url, timeout=30.0)
@@ -75,10 +75,12 @@ class JobFetcher:
         except Exception as e:
             raise Exception(f"Failed to fetch PDF: {e}")
 
-    def _fetch_web(self, url: str) -> Dict[str, Optional[str]]:
+    def _fetch_web(self, url: str) -> dict[str, Any]:
         """Extract text from web page."""
         try:
             t0 = time.perf_counter()
+            if self.browser is None:
+                raise RuntimeError("Browser not initialized")
             page = self.browser.new_page()
             logger.info("_fetch_web: navigating to %s", url[:50])
             page.goto(url, wait_until="networkidle", timeout=30000)

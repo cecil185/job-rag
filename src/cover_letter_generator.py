@@ -1,7 +1,7 @@
 """Cover letter generator using Evidence and Style RAG."""
 import logging
 import time
-from typing import Dict
+from typing import Any
 from typing import List
 
 from openai import OpenAI
@@ -23,7 +23,12 @@ class CoverLetterGenerator:
         self.style_rag = style_rag
         self.client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
 
-    def generate(self, job: Job, requirements: List[Requirement], evidence_map: Dict[int, List[Dict]]) -> str:
+    def generate(
+        self,
+        job: Job,
+        requirements: List[Requirement],
+        evidence_map: dict[int, List[dict[str, Any]]],
+    ) -> str:
         """
         Generate a cover letter for the job.
 
@@ -75,7 +80,7 @@ Instructions:
             temperature=0.6
         )
         logger.info("CoverLetterGenerator.generate: done in %.2fs", time.perf_counter() - t0)
-        return response.choices[0].message.content
+        return response.choices[0].message.content or ""
 
     def _format_requirements(self, requirements: List[Requirement]) -> str:
         lines = []
@@ -83,7 +88,11 @@ Instructions:
             lines.append(f"- [{req.category}] {req.text}")
         return "\n".join(lines)
 
-    def _build_evidence_context(self, requirements: List[Requirement], evidence_map: Dict[int, List[Dict]]) -> str:
+    def _build_evidence_context(
+        self,
+        requirements: List[Requirement],
+        evidence_map: dict[int, List[dict[str, Any]]],
+    ) -> str:
         context_parts = []
         for req in requirements:
             evidence = evidence_map.get(req.id, [])

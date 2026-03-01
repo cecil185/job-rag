@@ -2,8 +2,8 @@
 import logging
 import time
 from typing import Any
-from typing import Dict
 from typing import List
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class Workflow:
     """Main workflow orchestrator."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session) -> None:
         self.db = db
         self.requirement_extractor = RequirementExtractor()
         self.evidence_rag = EvidenceRAG(db)
@@ -38,7 +38,7 @@ class Workflow:
         self.cover_letter_reviser = CoverLetterReviser()
         self.application_answer_generator = ApplicationAnswerGenerator(self.evidence_rag, self.style_rag)
 
-    def generate_cover_letter_with_revision(self, job_id: int) -> Dict[str, Any]:
+    def generate_cover_letter_with_revision(self, job_id: int) -> dict[str, Any]:
         """
         Generate draft, run critic, then reviser; return draft, critique, and revised letter.
         """
@@ -59,7 +59,7 @@ class Workflow:
         )
         return {"draft": draft, "critique": critique, "revised": revised}
 
-    def approve_cover_letter(self, job_id: int, content: str):
+    def approve_cover_letter(self, job_id: int, content: str) -> None:
         """Add edited cover letter to Style RAG as a style example."""
         t0 = time.perf_counter()
         logger.info("approve_cover_letter: job_id=%s start", job_id)
@@ -86,7 +86,7 @@ class Workflow:
         logger.info("generate_application_answer: job_id=%s done in %.2fs", job_id, time.perf_counter() - t0)
         return answer
 
-    def approve_application_answer(self, job_id: int, question: str, content: str):
+    def approve_application_answer(self, job_id: int, question: str, content: str) -> None:
         """Add edited application answer to Style RAG as a style example."""
         t0 = time.perf_counter()
         logger.info("approve_application_answer: job_id=%s start", job_id)
@@ -101,7 +101,12 @@ class Workflow:
         self.style_rag.add_style_example_chunked(content, metadata)
         logger.info("approve_application_answer: job_id=%s done in %.2fs", job_id, time.perf_counter() - t0)
 
-    def process_job_links(self, urls: List[str], role_tags: List[str] = None, raw_text_override: str = None) -> List[Dict]:
+    def process_job_links(
+        self,
+        urls: List[str],
+        role_tags: Optional[List[str]] = None,
+        raw_text_override: Optional[str] = None,
+    ) -> List[dict[str, Any]]:
         """
         Process job posting links.
 
@@ -135,7 +140,13 @@ class Workflow:
         logger.info("process_job_links: done in %.2fs, %d results", time.perf_counter() - t0, len(results))
         return results
 
-    def _process_single_job(self, url: str, fetcher: JobFetcher, role_tags: List[str] = None, raw_text: str = None) -> Dict:
+    def _process_single_job(
+        self,
+        url: str,
+        fetcher: JobFetcher,
+        role_tags: Optional[List[str]] = None,
+        raw_text: Optional[str] = None,
+    ) -> dict[str, Any]:
         """Process a single job posting. If raw_text is provided, skip fetching the URL and use it."""
         t0 = time.perf_counter()
         logger.info("_process_single_job: url=%s start, raw_text=%s", url[:60], bool(raw_text))
@@ -235,7 +246,9 @@ class Workflow:
             "gaps_count": len(gaps)
         }
 
-    def approve_edit_pack(self, edit_pack_id: int, modified_content: str = None):
+    def approve_edit_pack(
+        self, edit_pack_id: int, modified_content: Optional[str] = None
+    ) -> None:
         """
         Approve edit pack and store in Style RAG.
 
@@ -268,7 +281,7 @@ class Workflow:
         self.db.commit()
         logger.info("approve_edit_pack: edit_pack_id=%s done in %.2fs", edit_pack_id, time.perf_counter() - t0)
 
-    def get_ranked_jobs(self) -> List[Dict]:
+    def get_ranked_jobs(self) -> List[dict[str, Any]]:
         """Get jobs ranked by fit score (all processed jobs, not just pending)."""
         t0 = time.perf_counter()
         jobs = self.db.query(Job).join(EditPack).order_by(

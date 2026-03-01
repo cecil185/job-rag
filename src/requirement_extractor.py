@@ -2,6 +2,7 @@
 import json
 import logging
 import time
+from typing import Any
 from typing import List
 from typing import Optional
 
@@ -29,7 +30,7 @@ def _should_exclude_requirement(text: str) -> bool:
     return any(word in lower for word in EXCLUDED_REQUIREMENT_WORDS)
 
 
-def _filter_requirements_dict(data: dict) -> dict:
+def _filter_requirements_dict(data: dict[str, Any]) -> dict[str, Any]:
     """Filter out list entries that contain any excluded word. Modifies and returns data."""
     for key in ("skills", "responsibilities", "must_haves", "keywords"):
         if key in data and isinstance(data[key], list):
@@ -77,7 +78,7 @@ def _count_tokens(text: str, encoding: tiktoken.Encoding) -> int:
 class RequirementExtractor:
     """Extracts structured requirements from job postings."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
         self._encoding = tiktoken.get_encoding("cl100k_base")
 

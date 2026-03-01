@@ -1,7 +1,7 @@
 """Application question answer generator using Evidence and Style RAG."""
 import logging
 import time
-from typing import Dict
+from typing import Any
 from typing import List
 
 from openai import OpenAI
@@ -27,7 +27,7 @@ class ApplicationAnswerGenerator:
         self,
         job: Job,
         requirements: List[Requirement],
-        evidence_map: Dict[int, List[Dict]],
+        evidence_map: dict[int, List[dict[str, Any]]],
         question: str,
     ) -> str:
         """
@@ -84,7 +84,7 @@ Instructions:
             temperature=0.6
         )
         logger.info("ApplicationAnswerGenerator.generate: done in %.2fs", time.perf_counter() - t0)
-        return response.choices[0].message.content
+        return response.choices[0].message.content or ""
 
     def _format_requirements(self, requirements: List[Requirement]) -> str:
         lines = []
@@ -92,7 +92,7 @@ Instructions:
             lines.append(f"- [{req.category}] {req.text}")
         return "\n".join(lines)
 
-    def _build_evidence_context(self, requirements: List[Requirement], evidence_map: Dict[int, List[Dict]]) -> str:
+    def _build_evidence_context(self, requirements: List[Requirement], evidence_map: dict[int, List[dict[str, Any]]]) -> str:
         context_parts = []
         for req in requirements:
             evidence = evidence_map.get(req.id, [])

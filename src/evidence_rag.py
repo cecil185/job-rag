@@ -2,7 +2,7 @@
 import json
 import logging
 import time
-from typing import Dict
+from typing import Any
 from typing import List
 from typing import Tuple
 
@@ -21,12 +21,18 @@ logger = logging.getLogger(__name__)
 class EvidenceRAG:
     """Evidence RAG for retrieving matching proof points."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session) -> None:
         self.db = db
         self.embedding_gen = EmbeddingGenerator()
         self.chunker = Chunker()
 
-    def add_evidence(self, text: str, source_id: str, metadata: dict = None, is_resume: bool = False):
+    def add_evidence(
+        self,
+        text: str,
+        source_id: str,
+        metadata: dict[str, Any] | None = None,
+        is_resume: bool = False,
+    ) -> None:
         """
         Add evidence text to the store.
 
@@ -73,7 +79,7 @@ class EvidenceRAG:
         self.db.commit()
         logger.info("add_evidence: source_id=%s done in %.2fs (%d chunks)", source_id, time.perf_counter() - t0, len(chunks))
 
-    def retrieve(self, query_text: str, top_k: int) -> List[Dict]:
+    def retrieve(self, query_text: str, top_k: int) -> List[dict[str, Any]]:
         """
         Retrieve top matching evidence chunks.
 
@@ -126,7 +132,11 @@ class EvidenceRAG:
         logger.info("retrieve: top_k=%d done in %.2fs", top_k, time.perf_counter() - t0)
         return results
 
-    def match_requirements(self, requirements: List[Requirement], top_k: int = None) -> Dict[int, List[Dict]]:
+    def match_requirements(
+        self,
+        requirements: List[Requirement],
+        top_k: int | None = None,
+    ) -> dict[int, List[dict[str, Any]]]:
         """
         Match evidence to requirements.
 

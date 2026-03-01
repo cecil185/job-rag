@@ -1,7 +1,7 @@
 """Cover letter critic agent: reviews drafts against job and evidence."""
 import logging
 import time
-from typing import Dict
+from typing import Any
 from typing import List
 
 from openai import OpenAI
@@ -26,7 +26,7 @@ class CoverLetterCritic:
         draft: str,
         job: Job,
         requirements: List[Requirement],
-        evidence_map: Dict[int, List[Dict]],
+        evidence_map: dict[int, List[dict[str, Any]]],
     ) -> str:
         """
         Critique the draft cover letter against the job and candidate evidence.
@@ -83,7 +83,7 @@ Output the critique only (no JSON). Use clear section headers or bullets so the 
             ],
             temperature=0.3,
         )
-        critique = response.choices[0].message.content
+        critique = response.choices[0].message.content or ""
         logger.info("CoverLetterCritic.critique: done in %.2fs", time.perf_counter() - t0)
         return critique
 
@@ -96,7 +96,7 @@ Output the critique only (no JSON). Use clear section headers or bullets so the 
     def _build_evidence_context(
         self,
         requirements: List[Requirement],
-        evidence_map: Dict[int, List[Dict]],
+        evidence_map: dict[int, List[dict[str, Any]]],
     ) -> str:
         parts = []
         for req in requirements:

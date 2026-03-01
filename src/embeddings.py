@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class EmbeddingGenerator:
     """Generate embeddings for text."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
 
     def generate(self, text: str) -> List[float]:
@@ -28,7 +28,7 @@ class EmbeddingGenerator:
             input=text
         )
         logger.debug("embeddings.generate(1): %.2fs", time.perf_counter() - t0)
-        return response.data[0].embedding
+        return list(response.data[0].embedding)
 
     def generate_batch(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for multiple texts."""
@@ -41,7 +41,7 @@ class EmbeddingGenerator:
             input=texts
         )
         logger.info("embeddings.generate_batch(%d): %.2fs", len(texts), time.perf_counter() - t0)
-        return [item.embedding for item in response.data]
+        return [list(item.embedding) for item in response.data]
 
     def embedding_to_text(self, embedding: List[float]) -> str:
         """Convert embedding list to JSON string for storage."""
@@ -49,4 +49,4 @@ class EmbeddingGenerator:
 
     def text_to_embedding(self, text: str) -> List[float]:
         """Convert JSON string back to embedding list."""
-        return json.loads(text)
+        return list(json.loads(text))

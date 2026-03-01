@@ -1,7 +1,7 @@
 """Cover letter reviser agent: revises draft using critic feedback and evidence."""
 import logging
 import time
-from typing import Dict
+from typing import Any
 from typing import List
 
 from openai import OpenAI
@@ -27,7 +27,7 @@ class CoverLetterReviser:
         critique: str,
         job: Job,
         requirements: List[Requirement],
-        evidence_map: Dict[int, List[Dict]],
+        evidence_map: dict[int, List[dict[str, Any]]],
     ) -> str:
         """
         Revise the draft to address the critique. Preserves voice; only uses provided evidence.
@@ -87,7 +87,7 @@ Instructions:
             ],
             temperature=0.5,
         )
-        revised = response.choices[0].message.content
+        revised = response.choices[0].message.content or ""
         logger.info("CoverLetterReviser.revise: done in %.2fs", time.perf_counter() - t0)
         return revised
 
@@ -100,7 +100,7 @@ Instructions:
     def _build_evidence_context(
         self,
         requirements: List[Requirement],
-        evidence_map: Dict[int, List[Dict]],
+        evidence_map: dict[int, List[dict[str, Any]]],
     ) -> str:
         parts = []
         for req in requirements:

@@ -1,6 +1,8 @@
 """Database setup and models."""
 import logging
 from datetime import datetime
+from typing import Any
+from typing import Generator
 
 from sqlalchemy import Boolean
 from sqlalchemy import Column
@@ -14,6 +16,7 @@ from sqlalchemy import String
 from sqlalchemy import Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Session
 from sqlalchemy.orm import sessionmaker
 
 from src.config import settings
@@ -23,7 +26,7 @@ logger = logging.getLogger(__name__)
 Base = declarative_base()
 
 
-class Job(Base):
+class Job(Base):  # type: ignore[valid-type,misc]
     """Job posting model."""
     __tablename__ = "jobs"
 
@@ -37,7 +40,7 @@ class Job(Base):
     edit_packs = relationship("EditPack", back_populates="job")
 
 
-class Requirement(Base):
+class Requirement(Base):  # type: ignore[valid-type,misc]
     """Extracted requirement from job posting."""
     __tablename__ = "requirements"
 
@@ -52,7 +55,7 @@ class Requirement(Base):
     evidence_matches = relationship("EvidenceMatch", back_populates="requirement")
 
 
-class EvidenceMatch(Base):
+class EvidenceMatch(Base):  # type: ignore[valid-type,misc]
     """Evidence snippets matched to requirements."""
     __tablename__ = "evidence_matches"
 
@@ -66,7 +69,7 @@ class EvidenceMatch(Base):
     evidence_chunk = relationship("EvidenceChunk", back_populates="matches")
 
 
-class EvidenceChunk(Base):
+class EvidenceChunk(Base):  # type: ignore[valid-type,misc]
     """Chunked evidence from resume/brag-doc/projects."""
     __tablename__ = "evidence_chunks"
 
@@ -81,7 +84,7 @@ class EvidenceChunk(Base):
     matches = relationship("EvidenceMatch", back_populates="evidence_chunk")
 
 
-class StyleExample(Base):
+class StyleExample(Base):  # type: ignore[valid-type,misc]
     """Approved edit pack stored as style example."""
     __tablename__ = "style_examples"
 
@@ -92,7 +95,7 @@ class StyleExample(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-class EditPack(Base):
+class EditPack(Base):  # type: ignore[valid-type,misc]
     """Generated resume edit pack."""
     __tablename__ = "edit_packs"
 
@@ -113,7 +116,7 @@ engine = create_engine(settings.database_url)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def init_db():
+def init_db() -> None:
     """Initialize database tables and pgvector extension."""
     from sqlalchemy import text
 
@@ -158,7 +161,7 @@ def init_db():
             logger.warning("init_db: vector indexes - %s. Queries will still work but may be slower.", e)
 
 
-def get_db():
+def get_db() -> Generator[Session, None, None]:
     """Get database session."""
     db = SessionLocal()
     try:

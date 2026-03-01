@@ -1,5 +1,7 @@
 """Text chunking utilities."""
+from typing import Any
 from typing import List
+from typing import Optional
 
 import tiktoken
 
@@ -9,12 +11,18 @@ from src.config import settings
 class Chunker:
     """Chunk text into smaller pieces for embedding."""
 
-    def __init__(self, chunk_size: int = None, chunk_overlap: int = None):
+    def __init__(
+        self,
+        chunk_size: Optional[int] = None,
+        chunk_overlap: Optional[int] = None,
+    ) -> None:
         self.chunk_size = chunk_size or settings.evidence_chunk_size
         self.chunk_overlap = chunk_overlap or settings.evidence_chunk_overlap
         self.encoding = tiktoken.get_encoding("cl100k_base")
 
-    def chunk_text(self, text: str, metadata: dict = None) -> List[dict]:
+    def chunk_text(
+        self, text: str, metadata: Optional[dict[str, Any]] = None
+    ) -> List[dict[str, Any]]:
         """
         Chunk text into overlapping chunks.
 
@@ -28,7 +36,7 @@ class Chunker:
         # Tokenize
         tokens = self.encoding.encode(text)
 
-        chunks = []
+        chunks: List[dict[str, Any]] = []
         start = 0
 
         while start < len(tokens):
@@ -57,10 +65,15 @@ class Chunker:
 
         return chunks
 
-    def _token_chunk(self, text: str, metadata: dict, chunk_index_start: int = 0) -> List[dict]:
+    def _token_chunk(
+        self,
+        text: str,
+        metadata: dict[str, Any],
+        chunk_index_start: int = 0,
+    ) -> List[dict[str, Any]]:
         """Split text into token-sized chunks with overlap (same logic as chunk_text)."""
         tokens = self.encoding.encode(text)
-        result = []
+        result: List[dict[str, Any]] = []
         start = 0
         while start < len(tokens):
             end = min(start + self.chunk_size, len(tokens))
@@ -80,15 +93,17 @@ class Chunker:
                 break
         return result
 
-    def chunk_by_sentences(self, text: str, metadata: dict = None) -> List[dict]:
+    def chunk_by_sentences(
+        self, text: str, metadata: Optional[dict[str, Any]] = None
+    ) -> List[dict[str, Any]]:
         """
         Chunk text by sentences, respecting chunk_size.
         When a segment has no periods or exceeds chunk_size, token-splits it like chunk_text.
         """
         meta = metadata or {}
         sentences = text.split('. ')
-        chunks = []
-        current_chunk = []
+        chunks: List[dict[str, Any]] = []
+        current_chunk: List[str] = []
         current_size = 0
 
         for sentence in sentences:
