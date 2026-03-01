@@ -1,13 +1,18 @@
 """Streamlit UI for Job RAG."""
 import io
 import logging
+import sys
+
 import streamlit as st
 from sqlalchemy.orm import Session
-from src.database import get_db, init_db, Job, EditPack
-from src.workflow import Workflow
-from src.evidence_rag import EvidenceRAG
+
 from scripts.pdf_to_txt import pdf_to_text
-import sys
+from src.database import EditPack
+from src.database import get_db
+from src.database import init_db
+from src.database import Job
+from src.evidence_rag import EvidenceRAG
+from src.workflow import Workflow
 
 # Configure logging so INFO shows where time is spent
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -40,14 +45,14 @@ def main():
     # Sidebar for evidence management
     with st.sidebar:
         st.header("📚 Evidence Management")
-        
+
         st.subheader("Add Evidence")
         evidence_id = st.text_input("Source ID", placeholder="e.g., resume, linkedin", key="evidence_source_id")
         is_resume = st.checkbox("Resume (replaces previous resume)", value=False, help="Check if this is your base resume. Uploading a new resume replaces the old one in the system.")
-        
+
         # File upload option
         uploaded_file = st.file_uploader("Upload a file", type=["txt", "md", "pdf"], help="Upload a text, markdown, or PDF file with your resume/project content")
-        
+
         if uploaded_file is not None:
             if uploaded_file.type == "application/pdf":
                 try:
@@ -61,7 +66,7 @@ def main():
                 st.text_area("Preview uploaded content", evidence_text, height=150, disabled=True)
         else:
             evidence_text = st.text_area("Or Paste Text", height=200, placeholder="Paste your resume bullets, project descriptions, or brag-doc entries here...\n\nYou can paste multiple items at once - the system will automatically chunk them.")
-        
+
         if st.button("Add Evidence", type="primary"):
             if not evidence_id or not evidence_id.strip():
                 st.error("Please enter a Source ID")
@@ -78,51 +83,51 @@ def main():
                 st.info(f"Your content has been chunked and stored in the Evidence RAG database.")
             else:
                 st.error("Please enter evidence text or upload a file")
-        
+
         st.divider()
-        
+
         st.subheader("Database Status")
         job_count = st.session_state.db.query(Job).count()
         edit_pack_count = st.session_state.db.query(EditPack).filter(EditPack.approved == 0).count()
         st.metric("Jobs Processed", job_count)
         st.metric("Pending Edit Packs", edit_pack_count)
-    
+
     # Main tabs
     tab1, tab2, tab3 = st.tabs(["📥 Process Jobs", "📊 Ranked Jobs", "✅ Review Edit Packs"])
-    
+
     with tab1:
         st.header("Process Job Postings")
         st.markdown("Paste job posting URLs to extract requirements and generate edit packs")
-        
+
         urls_text = st.text_area(
             "Job Posting URLs (one per line)",
             height=120,
             placeholder="https://example.com/job1\nhttps://example.com/job2"
         )
-        
+
         raw_text_paste = st.text_area(
             "Raw job text (optional)",
             height=200,
             placeholder="Paste raw job posting text here. If provided, this is used for the first URL and the URL is not fetched.",
             help="If you provide text here, it will be used for the first URL above and the app will skip fetching that URL."
         )
-        
+
         role_tags = st.text_input("Role Tags (optional, comma-separated)")
-        
+
         if st.button("Process Jobs", type="primary"):
             if urls_text:
                 urls = [url.strip() for url in urls_text.split("\n") if url.strip()]
                 tags = [tag.strip() for tag in role_tags.split(",")] if role_tags else None
                 raw_override = raw_text_paste.strip() if raw_text_paste else None
-                
+
                 with st.spinner("Processing jobs..."):
                     logger.info("Processing %d job URL(s), raw_text_override=%s", len(urls), bool(raw_override))
                     results = st.session_state.workflow.process_job_links(urls, tags, raw_text_override=raw_override)
                     logger.info("Process jobs finished: %d results", len(results))
-                
+
                 success_count = sum(1 for r in results if r.get("status") == "success")
                 st.success(f"Processed {success_count} jobs")
-                
+
                 for result in results:
                     if result["status"] == "success":
                         st.success(f"✅ {result['url']} - Fit Score: {result['fit_score']:.2%}")
@@ -132,28 +137,28 @@ def main():
                         st.error(f"❌ {result['url']} - Error: {result.get('error', 'Unknown')}")
             else:
                 st.warning("Please enter at least one URL")
-    
+
     with tab2:
         st.header("Ranked Jobs by Evidence Coverage")
-        
+
         if st.button("Refresh Rankings"):
             st.rerun()
-        
+
         logger.info("Fetching ranked jobs")
         ranked_jobs = st.session_state.workflow.get_ranked_jobs()
         logger.info("Ranked jobs: %d", len(ranked_jobs) if ranked_jobs else 0)
-        
+
         if ranked_jobs:
             for i, job in enumerate(ranked_jobs, 1):
                 with st.expander(f"#{i} {job['url']} - Fit: {job['fit_score']:.2%}"):
                     st.write(f"**URL:** {job['url']}")
                     st.write(f"**Fit Score:** {job['fit_score']:.2%}")
-                    
+
                     if job['gaps']:
                         st.write("**Gaps:**")
                         for gap in job['gaps']:
                             st.write(f"- {gap}")
-                    
+
                     if job['edit_pack_id']:
                         st.write(f"**Edit Pack ID:** {job['edit_pack_id']}")
 
@@ -252,36 +257,36 @@ def main():
                                 st.rerun()
         else:
             st.info("No jobs processed yet. Process some jobs in the 'Process Jobs' tab.")
-    
+
     with tab3:
         st.header("Review and Approve Edit Packs")
-        
+
         # Get pending edit packs
         logger.info("Loading pending edit packs")
         pending_packs = st.session_state.db.query(EditPack).filter(
             EditPack.approved == 0
         ).join(Job).order_by(EditPack.fit_score.desc()).all()
-        
+
         if pending_packs:
             for pack in pending_packs:
                 job = pack.job
                 with st.expander(f"{job.url} - Fit: {pack.fit_score:.2%}"):
                     st.write(f"**Job URL:** {job.url}")
                     st.write(f"**Fit Score:** {pack.fit_score:.2%}")
-                    
+
                     if pack.gap_list:
                         st.write("**Gaps:**")
                         for gap in pack.gap_list:
                             st.write(f"- {gap}")
-                    
+
                     st.divider()
                     st.subheader("Edit Pack")
-                    
+
                     # Show edit pack content
                     st.markdown(pack.content)
-                    
+
                     st.divider()
-                    
+
                     # Allow editing
                     edited_content = st.text_area(
                         "Edit Content (optional)",
@@ -289,7 +294,7 @@ def main():
                         height=300,
                         key=f"edit_{pack.id}"
                     )
-                    
+
                     col1, col2 = st.columns(2)
                     with col1:
                         if st.button("✅ Approve", key=f"approve_{pack.id}", type="primary"):
@@ -299,7 +304,7 @@ def main():
                             )
                             st.success("Edit pack approved and added to Style RAG!")
                             st.rerun()
-                    
+
                     with col2:
                         if st.button("❌ Reject", key=f"reject_{pack.id}"):
                             pack.approved = -1

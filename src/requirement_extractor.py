@@ -1,12 +1,16 @@
 """Requirement extractor using LLM."""
+import json
 import logging
 import time
-from pydantic import BaseModel, Field
-from typing import List, Optional
-from openai import OpenAI
-from src.config import settings
-import json
+from typing import List
+from typing import Optional
+
 import tiktoken
+from openai import OpenAI
+from pydantic import BaseModel
+from pydantic import Field
+
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -46,23 +50,23 @@ class Requirements(BaseModel):
     responsibilities: List[str] = Field(default_factory=list, description="Job responsibilities and duties")
     must_haves: List[str] = Field(default_factory=list, description="Must-have requirements")
     keywords: List[str] = Field(default_factory=list, description="Important keywords and phrases")
-    
+
     def to_requirement_items(self) -> List[RequirementItem]:
         """Convert to list of RequirementItem objects."""
         items = []
-        
+
         for skill in self.skills:
             items.append(RequirementItem(text=skill, category="skills", priority="must_have"))
-        
+
         for resp in self.responsibilities:
             items.append(RequirementItem(text=resp, category="responsibilities", priority="nice_to_have"))
-        
+
         for must in self.must_haves:
             items.append(RequirementItem(text=must, category="must_haves", priority="must_have"))
-        
+
         for keyword in self.keywords:
             items.append(RequirementItem(text=keyword, category="keywords", priority="nice_to_have"))
-        
+
         return items
 
 
@@ -72,18 +76,18 @@ def _count_tokens(text: str, encoding: tiktoken.Encoding) -> int:
 
 class RequirementExtractor:
     """Extracts structured requirements from job postings."""
-    
+
     def __init__(self):
         self.client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
         self._encoding = tiktoken.get_encoding("cl100k_base")
-    
+
     def extract(self, job_text: str) -> Requirements:
         """
         Extract requirements from job posting text.
-        
+
         Args:
             job_text: Raw text from job posting
-            
+
         Returns:
             Requirements object with structured data
         """
@@ -131,7 +135,7 @@ Each field should be a list of strings. Be specific and comprehensive."""
         )
         logger.info("RequirementExtractor.extract: done in %.2fs", time.perf_counter() - t0)
         result_text = response.choices[0].message.content
-        
+
         try:
             result_dict = json.loads(result_text)
             _filter_requirements_dict(result_dict)
@@ -140,13 +144,13 @@ Each field should be a list of strings. Be specific and comprehensive."""
             # Fallback: try to parse manually
             print(f"Warning: Failed to parse JSON response: {e}")
             return self._fallback_extract(job_text)
-    
+
     def _fallback_extract(self, job_text: str) -> Requirements:
         """Fallback extraction if JSON parsing fails."""
         # Simple keyword-based extraction as fallback
         skills_keywords = ['python', 'javascript', 'java', 'react', 'aws', 'docker', 'kubernetes', 'sql', 'postgresql']
         found_skills = [kw for kw in skills_keywords if kw.lower() in job_text.lower()]
-        
+
         return Requirements(
             skills=found_skills,
             responsibilities=[],

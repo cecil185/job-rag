@@ -1,29 +1,35 @@
 """Evidence RAG for retrieving proof points."""
+import json
 import logging
 import time
-from sqlalchemy.orm import Session
+from typing import Dict
+from typing import List
+from typing import Tuple
+
 from sqlalchemy import text
-from typing import List, Dict, Tuple
-from src.database import EvidenceChunk, EvidenceMatch, Requirement
-from src.embeddings import EmbeddingGenerator
+from sqlalchemy.orm import Session
+
 from src.chunker import Chunker
-import json
+from src.database import EvidenceChunk
+from src.database import EvidenceMatch
+from src.database import Requirement
+from src.embeddings import EmbeddingGenerator
 
 logger = logging.getLogger(__name__)
 
 
 class EvidenceRAG:
     """Evidence RAG for retrieving matching proof points."""
-    
+
     def __init__(self, db: Session):
         self.db = db
         self.embedding_gen = EmbeddingGenerator()
         self.chunker = Chunker()
-    
+
     def add_evidence(self, text: str, source_id: str, metadata: dict = None, is_resume: bool = False):
         """
         Add evidence text to the store.
-        
+
         Args:
             text: Evidence text (resume bullets, project descriptions, etc.)
             source_id: Identifier for this source (required).
@@ -61,20 +67,20 @@ class EvidenceRAG:
                 meta_data=chunk["metadata"],
                 is_resume=is_resume
             )
-            
+
             self.db.add(evidence_chunk)
 
         self.db.commit()
         logger.info("add_evidence: source_id=%s done in %.2fs (%d chunks)", source_id, time.perf_counter() - t0, len(chunks))
-    
+
     def retrieve(self, query_text: str, top_k: int) -> List[Dict]:
         """
         Retrieve top matching evidence chunks.
-        
+
         Args:
             query_text: Query text (requirement text)
             top_k: Number of results to return
-            
+
         Returns:
             List of dicts with 'content', 'source_id', 'similarity_score', 'metadata'
         """
@@ -82,10 +88,10 @@ class EvidenceRAG:
         # Generate query embedding
         query_embedding = self.embedding_gen.generate(query_text)
         embedding_json = json.dumps(query_embedding)
-        
+
         # Vector similarity search using pgvector
         query = text("""
-            SELECT 
+            SELECT
                 id,
                 source_id,
                 content,
@@ -97,7 +103,7 @@ class EvidenceRAG:
             ORDER BY embedding::vector <=> CAST(:query_embedding AS vector)
             LIMIT :top_k
         """)
-        
+
         result = self.db.execute(
             query,
             {
@@ -105,7 +111,7 @@ class EvidenceRAG:
                 "top_k": top_k
             }
         )
-        
+
         results = []
         for row in result:
             results.append({
@@ -119,15 +125,15 @@ class EvidenceRAG:
 
         logger.info("retrieve: top_k=%d done in %.2fs", top_k, time.perf_counter() - t0)
         return results
-    
+
     def match_requirements(self, requirements: List[Requirement], top_k: int = None) -> Dict[int, List[Dict]]:
         """
         Match evidence to requirements.
-        
+
         Args:
             requirements: List of Requirement objects
             top_k: Number of evidence items per requirement
-            
+
         Returns:
             Dict mapping requirement_id -> list of evidence matches
         """
@@ -139,7 +145,7 @@ class EvidenceRAG:
         for req in requirements:
             # Retrieve evidence
             evidence = self.retrieve(req.text, top_k=top_k)
-            
+
             # Store matches in database
             for ev in evidence:
                 match = EvidenceMatch(
@@ -148,13 +154,13 @@ class EvidenceRAG:
                     similarity_score=ev["similarity_score"]
                 )
                 self.db.add(match)
-            
+
             evidence_map[req.id] = evidence
 
         self.db.commit()
         logger.info("match_requirements: done in %.2fs", time.perf_counter() - t0)
         return evidence_map
-    
+
     def calculate_fit_score(
         self,
         requirements: List[Requirement],
@@ -163,18 +169,18 @@ class EvidenceRAG:
     ) -> Tuple[float, List[str]]:
         """
         Calculate fit score and identify gaps.
-        
+
         A requirement is considered matched if either:
         - the top evidence chunk has similarity_score >= threshold, or
         - the requirement text appears (case-insensitive) in any of the top_k evidence chunks.
         The keyword check avoids marking skills like "Python" as gaps when they appear
         in resume chunks but embedding similarity for short queries is below threshold.
-        
+
         Args:
             requirements: List of Requirement objects
             threshold: Minimum similarity score to count as match
             top_k_for_keyword: Number of evidence chunks to check for keyword presence
-            
+
         Returns:
             Tuple of (fit_score, gap_list)
         """
@@ -186,7 +192,7 @@ class EvidenceRAG:
         logger.info("calculate_fit_score: %d requirements", total_reqs)
         matched_reqs = 0
         gaps = []
-        
+
         for req in requirements:
             evidence = self.retrieve(req.text, top_k=top_k_for_keyword)
             if not evidence:
@@ -202,7 +208,7 @@ class EvidenceRAG:
                 matched_reqs += 1
             else:
                 gaps.append(req.text)
-        
+
         fit_score = matched_reqs / total_reqs if total_reqs > 0 else 0.0
         logger.info("calculate_fit_score: done in %.2fs score=%.2f gaps=%d", time.perf_counter() - t0, fit_score, len(gaps))
         return fit_score, gaps

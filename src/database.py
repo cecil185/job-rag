@@ -1,9 +1,21 @@
 """Database setup and models."""
 import logging
-from sqlalchemy import create_engine, Column, Integer, String, Text, Float, DateTime, JSON, Boolean, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
+
+from sqlalchemy import Boolean
+from sqlalchemy import Column
+from sqlalchemy import create_engine
+from sqlalchemy import DateTime
+from sqlalchemy import Float
+from sqlalchemy import ForeignKey
+from sqlalchemy import Integer
+from sqlalchemy import JSON
+from sqlalchemy import String
+from sqlalchemy import Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+from sqlalchemy.orm import sessionmaker
+
 from src.config import settings
 
 logger = logging.getLogger(__name__)
@@ -14,13 +26,13 @@ Base = declarative_base()
 class Job(Base):
     """Job posting model."""
     __tablename__ = "jobs"
-    
+
     id = Column(Integer, primary_key=True)
     url = Column(String, unique=True, nullable=False)
     raw_text = Column(Text)
     meta_data = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy conflict
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     requirements = relationship("Requirement", back_populates="job")
     edit_packs = relationship("EditPack", back_populates="job")
 
@@ -28,14 +40,14 @@ class Job(Base):
 class Requirement(Base):
     """Extracted requirement from job posting."""
     __tablename__ = "requirements"
-    
+
     id = Column(Integer, primary_key=True)
     job_id = Column(Integer, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
     category = Column(String)  # skills, responsibilities, must_haves, keywords
     text = Column(Text, nullable=False)
     priority = Column(String)  # must_have, nice_to_have
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     job = relationship("Job", back_populates="requirements")
     evidence_matches = relationship("EvidenceMatch", back_populates="requirement")
 
@@ -43,13 +55,13 @@ class Requirement(Base):
 class EvidenceMatch(Base):
     """Evidence snippets matched to requirements."""
     __tablename__ = "evidence_matches"
-    
+
     id = Column(Integer, primary_key=True)
     requirement_id = Column(Integer, ForeignKey("requirements.id"), nullable=False)
     evidence_id = Column(Integer, ForeignKey("evidence_chunks.id"), nullable=False)
     similarity_score = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     requirement = relationship("Requirement", back_populates="evidence_matches")
     evidence_chunk = relationship("EvidenceChunk", back_populates="matches")
 
@@ -57,7 +69,7 @@ class EvidenceMatch(Base):
 class EvidenceChunk(Base):
     """Chunked evidence from resume/brag-doc/projects."""
     __tablename__ = "evidence_chunks"
-    
+
     id = Column(Integer, primary_key=True)
     source_id = Column(String, nullable=False)  # identifier in source
     content = Column(Text, nullable=False)
@@ -65,14 +77,14 @@ class EvidenceChunk(Base):
     meta_data = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy conflict
     is_resume = Column(Boolean, default=False)  # True = on base resume (replace on re-upload)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     matches = relationship("EvidenceMatch", back_populates="evidence_chunk")
 
 
 class StyleExample(Base):
     """Approved edit pack stored as style example."""
     __tablename__ = "style_examples"
-    
+
     id = Column(Integer, primary_key=True)
     content = Column(Text, nullable=False)
     embedding = Column(Text)  # JSON array of floats
@@ -83,7 +95,7 @@ class StyleExample(Base):
 class EditPack(Base):
     """Generated resume edit pack."""
     __tablename__ = "edit_packs"
-    
+
     id = Column(Integer, primary_key=True)
     job_id = Column(Integer, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
     content = Column(Text, nullable=False)  # Markdown format
@@ -92,7 +104,7 @@ class EditPack(Base):
     approved = Column(Integer, default=0)  # 0=pending, 1=approved, -1=rejected
     created_at = Column(DateTime, default=datetime.utcnow)
     approved_at = Column(DateTime)
-    
+
     job = relationship("Job", back_populates="edit_packs")
 
 
@@ -129,13 +141,13 @@ def init_db():
             # Create expression indexes for vector similarity search
             # These indexes work on the cast expression
             conn.execute(text("""
-                CREATE INDEX IF NOT EXISTS evidence_chunks_embedding_idx 
+                CREATE INDEX IF NOT EXISTS evidence_chunks_embedding_idx
                 ON evidence_chunks USING ivfflat ((embedding::vector(1536)) vector_cosine_ops)
                 WITH (lists = 100)
                 WHERE embedding IS NOT NULL
             """))
             conn.execute(text("""
-                CREATE INDEX IF NOT EXISTS style_examples_embedding_idx 
+                CREATE INDEX IF NOT EXISTS style_examples_embedding_idx
                 ON style_examples USING ivfflat ((embedding::vector(1536)) vector_cosine_ops)
                 WITH (lists = 100)
                 WHERE embedding IS NOT NULL

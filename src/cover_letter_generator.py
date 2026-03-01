@@ -1,12 +1,16 @@
 """Cover letter generator using Evidence and Style RAG."""
 import logging
 import time
+from typing import Dict
+from typing import List
+
 from openai import OpenAI
-from typing import List, Dict
-from src.database import Requirement, Job
+
+from src.config import settings
+from src.database import Job
+from src.database import Requirement
 from src.evidence_rag import EvidenceRAG
 from src.style_rag import StyleRAG
-from src.config import settings
 
 logger = logging.getLogger(__name__)
 

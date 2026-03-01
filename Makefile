@@ -1,3 +1,5 @@
+# claude --worktree branch-name # open claude session in a worktree
+
 build:
 	docker-compose build
 

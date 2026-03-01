@@ -1,13 +1,16 @@
 """Style RAG for learning and applying writing style."""
+import json
 import logging
 import re
 import time
-from sqlalchemy.orm import Session
+from typing import Dict
+from typing import List
+
 from sqlalchemy import text
-from typing import List, Dict
+from sqlalchemy.orm import Session
+
 from src.database import StyleExample
 from src.embeddings import EmbeddingGenerator
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +45,11 @@ def chunk_by_sections(text: str) -> List[str]:
 
 class StyleRAG:
     """Style RAG for learning and applying writing style."""
-    
+
     def __init__(self, db: Session):
         self.db = db
         self.embedding_gen = EmbeddingGenerator()
-    
+
     def _chunk_content(self, content: str, chunk_type: str) -> List[str]:
         """
         Chunk content for storage: one chunk per paragraph or per section (project).
@@ -61,7 +64,7 @@ class StyleRAG:
             chunks = chunk_by_sections(content)
             return chunks if chunks else chunk_by_paragraphs(content)
         return [content.strip()]
-    
+
     def add_style_example_chunked(self, content: str, metadata: dict = None, chunk_type: str = "cover_letter"):
         """
         Chunk content and add each chunk as a separate style example row.
@@ -88,11 +91,11 @@ class StyleRAG:
     def retrieve_style_examples(self, query_text: str, top_k: int = None) -> List[Dict]:
         """
         Retrieve similar style examples.
-        
+
         Args:
             query_text: Query text (job requirements or context)
             top_k: Number of examples to return
-            
+
         Returns:
             List of dicts with 'content', 'similarity_score', 'metadata'
         """
@@ -101,10 +104,10 @@ class StyleRAG:
         # Generate query embedding
         query_embedding = self.embedding_gen.generate(query_text)
         embedding_json = json.dumps(query_embedding)
-        
+
         # Vector similarity search
         query = text("""
-            SELECT 
+            SELECT
                 id,
                 content,
                 meta_data,
@@ -114,7 +117,7 @@ class StyleRAG:
             ORDER BY embedding::vector <=> CAST(:query_embedding AS vector)
             LIMIT :top_k
         """)
-        
+
         result = self.db.execute(
             query,
             {
@@ -122,7 +125,7 @@ class StyleRAG:
                 "top_k": top_k
             }
         )
-        
+
         results = []
         for row in result:
             results.append({

@@ -1,34 +1,38 @@
 """Edit pack generator using Evidence and Style RAG."""
 import logging
 import time
+from typing import Dict
+from typing import List
+
 from openai import OpenAI
-from typing import List, Dict
-from src.database import Requirement, Job
+
+from src.config import settings
+from src.database import Job
+from src.database import Requirement
 from src.evidence_rag import EvidenceRAG
 from src.style_rag import StyleRAG
-from src.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class EditPackGenerator:
     """Generates resume edit packs with citations."""
-    
+
     def __init__(self, evidence_rag: EvidenceRAG, style_rag: StyleRAG):
         self.evidence_rag = evidence_rag
         self.style_rag = style_rag
         self.client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
-    
+
     def generate(self, job: Job, requirements: List[Requirement], evidence_map: Dict[int, List[Dict]], gaps: List[str] = None) -> str:
         """
         Generate edit pack with bullets to add and projects to highlight (no replace section).
-        
+
         Args:
             job: Job object
             requirements: List of Requirement objects
             evidence_map: Dict mapping requirement_id -> evidence matches
             gaps: Requirement phrases with weak/no evidence; put these words directly in Bullets to Add
-            
+
         Returns:
             Markdown-formatted edit pack
         """
@@ -45,10 +49,10 @@ class EditPackGenerator:
 
         # Build evidence context
         evidence_context = self._build_evidence_context(requirements, evidence_map)
-        
+
         # Build style context
         style_context = "\n\n".join([ex["content"] for ex in style_examples]) if style_examples else ""
-        
+
         gap_block = ""
         if gaps:
             gap_block = f"""
@@ -56,7 +60,7 @@ Gap phrases (requirements with NO or weak evidence — do NOT invent bullets for
 {chr(10).join("- " + g for g in gaps)}
 
 """
-        
+
         prompt = f"""Generate a Resume Edit Pack for this job posting.
 
 Job: {job.url or 'Job'}
@@ -89,18 +93,18 @@ Rules (strict):
         )
         logger.info("EditPackGenerator.generate: done in %.2fs", time.perf_counter() - t0)
         return response.choices[0].message.content
-    
+
     def _format_requirements(self, requirements: List[Requirement]) -> str:
         """Format requirements for prompt."""
         lines = []
         for req in requirements:
             lines.append(f"- [{req.category}] {req.text} (Priority: {req.priority})")
         return "\n".join(lines)
-    
+
     def _build_evidence_context(self, requirements: List[Requirement], evidence_map: Dict[int, List[Dict]]) -> str:
         """Build evidence context string."""
         context_parts = []
-        
+
         for req in requirements:
             evidence = evidence_map.get(req.id, [])
             if evidence:
@@ -113,5 +117,5 @@ Rules (strict):
                     resume_label = " (on current resume)" if on_resume else " (not on resume)"
                     context_parts.append(f"  Evidence #{i} (score: {ev['similarity_score']:.2f}){resume_label}: {content}")
                     context_parts.append(f"    Source ID: {ev.get('source_id', 'N/A')}")
-        
+
         return "\n".join(context_parts)

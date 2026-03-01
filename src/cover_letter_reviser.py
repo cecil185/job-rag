@@ -1,10 +1,14 @@
 """Cover letter reviser agent: revises draft using critic feedback and evidence."""
 import logging
 import time
-from typing import List, Dict
+from typing import Dict
+from typing import List
+
 from openai import OpenAI
-from src.database import Job, Requirement
+
 from src.config import settings
+from src.database import Job
+from src.database import Requirement
 
 logger = logging.getLogger(__name__)
 

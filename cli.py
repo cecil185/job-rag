@@ -1,11 +1,15 @@
 """CLI interface using Typer."""
 import logging
+from typing import List
+from typing import Optional
+
 import typer
-from typing import List, Optional
 from sqlalchemy.orm import Session
-from src.database import get_db, init_db
-from src.workflow import Workflow
+
+from src.database import get_db
+from src.database import init_db
 from src.evidence_rag import EvidenceRAG
+from src.workflow import Workflow
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -46,13 +50,13 @@ def process_jobs(
     logger.info("Processing %d job URL(s)", len(urls))
     db = next(get_db())
     workflow = Workflow(db)
-    
+
     tags = [t.strip() for t in role_tags.split(",")] if role_tags else None
-    
+
     typer.echo(f"Processing {len(urls)} job(s)...")
     results = workflow.process_job_links(urls, tags, reprocess=reprocess)
     logger.info("Process jobs finished: %d results", len(results))
-    
+
     for result in results:
         if result["status"] == "success":
             typer.echo(f"✅ {result['url']} - Fit: {result['fit_score']:.2%}")
@@ -68,10 +72,10 @@ def list_jobs():
     logger.info("Fetching ranked jobs")
     db = next(get_db())
     workflow = Workflow(db)
-    
+
     ranked = workflow.get_ranked_jobs()
     logger.info("Ranked jobs: %d", len(ranked) if ranked else 0)
-    
+
     if ranked:
         typer.echo("\nRanked Jobs by Fit Score:\n")
         for i, job in enumerate(ranked, 1):
@@ -92,7 +96,7 @@ def approve(
     logger.info("Approving edit_pack_id=%s", edit_pack_id)
     db = next(get_db())
     workflow = Workflow(db)
-    
+
     workflow.approve_edit_pack(edit_pack_id)
     logger.info("Edit pack %s approved", edit_pack_id)
     typer.echo(f"Edit pack {edit_pack_id} approved and added to Style RAG!")

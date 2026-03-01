@@ -1,0 +1,24 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: check-ast
+    -   id: end-of-file-fixer
+    -   id: debug-statements
+    -   id: name-tests-test
+        args: ["--pytest-test-first"]
+    -   id: requirements-txt-fixer
+-   repo: https://github.com/asottile/reorder_python_imports
+    rev: v2.3.5
+    hooks:
+    -   id: reorder-python-imports
+        args: [--py3-plus]
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: v1.7.0
+  hooks:
+    - id: mypy
+      additional_dependencies: [types-PyYAML, types-requests, pydantic>=2.0.0]
+      args: [--strict, --ignore-missing-imports, --explicit-package-bases]
+      files: ^src/
+      exclude: ^src/tests/

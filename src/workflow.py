@@ -1,25 +1,32 @@
 """Workflow orchestration."""
 import logging
 import time
+from typing import Any
+from typing import Dict
+from typing import List
+
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
-from src.database import Job, Requirement, EditPack, get_db
+
+from src.application_answer_generator import ApplicationAnswerGenerator
+from src.cover_letter_critic import CoverLetterCritic
+from src.cover_letter_generator import CoverLetterGenerator
+from src.cover_letter_reviser import CoverLetterReviser
+from src.database import EditPack
+from src.database import get_db
+from src.database import Job
+from src.database import Requirement
+from src.edit_pack_generator import EditPackGenerator
+from src.evidence_rag import EvidenceRAG
 from src.job_fetcher import JobFetcher
 from src.requirement_extractor import RequirementExtractor
-from src.evidence_rag import EvidenceRAG
 from src.style_rag import StyleRAG
-from src.edit_pack_generator import EditPackGenerator
-from src.cover_letter_generator import CoverLetterGenerator
-from src.cover_letter_critic import CoverLetterCritic
-from src.cover_letter_reviser import CoverLetterReviser
-from src.application_answer_generator import ApplicationAnswerGenerator
 
 logger = logging.getLogger(__name__)
 
 
 class Workflow:
     """Main workflow orchestrator."""
-    
+
     def __init__(self, db: Session):
         self.db = db
         self.requirement_extractor = RequirementExtractor()
@@ -97,12 +104,12 @@ class Workflow:
     def process_job_links(self, urls: List[str], role_tags: List[str] = None, raw_text_override: str = None) -> List[Dict]:
         """
         Process job posting links.
-        
+
         Args:
             urls: List of job posting URLs
             role_tags: Optional role tags for categorization
             raw_text_override: If provided, used for the first URL and that URL is not fetched.
-            
+
         Returns:
             List of job processing results
         """
@@ -127,7 +134,7 @@ class Workflow:
 
         logger.info("process_job_links: done in %.2fs, %d results", time.perf_counter() - t0, len(results))
         return results
-    
+
     def _process_single_job(self, url: str, fetcher: JobFetcher, role_tags: List[str] = None, raw_text: str = None) -> Dict:
         """Process a single job posting. If raw_text is provided, skip fetching the URL and use it."""
         t0 = time.perf_counter()
@@ -176,7 +183,7 @@ class Workflow:
             raise
         logger.info("_process_single_job: requirement_extractor.extract done in %.2fs", time.perf_counter() - t_extract)
         requirements = []
-        
+
         for req_item in requirements_obj.to_requirement_items():
             req = Requirement(
                 job_id=job.id,
@@ -186,7 +193,7 @@ class Workflow:
             )
             self.db.add(req)
             requirements.append(req)
-        
+
         self.db.commit()
         for req in requirements:
             self.db.refresh(req)
@@ -205,7 +212,7 @@ class Workflow:
         t_edit = time.perf_counter()
         edit_pack_content = self.edit_pack_generator.generate(job, requirements, evidence_map, gaps)
         logger.info("_process_single_job: edit_pack_generator.generate done in %.2fs", time.perf_counter() - t_edit)
-        
+
         # Step 8: Store edit pack
         edit_pack = EditPack(
             job_id=job.id,
@@ -227,11 +234,11 @@ class Workflow:
             "fit_score": fit_score,
             "gaps_count": len(gaps)
         }
-    
+
     def approve_edit_pack(self, edit_pack_id: int, modified_content: str = None):
         """
         Approve edit pack and store in Style RAG.
-        
+
         Args:
             edit_pack_id: ID of edit pack to approve
             modified_content: Optional modified content (if user edited it)
@@ -241,10 +248,10 @@ class Workflow:
         edit_pack = self.db.query(EditPack).filter(EditPack.id == edit_pack_id).first()
         if not edit_pack:
             raise ValueError(f"Edit pack {edit_pack_id} not found")
-        
+
         # Use modified content if provided, otherwise use original
         content_to_store = modified_content or edit_pack.content
-        
+
         # Store in Style RAG (style_examples.meta_data)
         job = edit_pack.job
         metadata = {
@@ -253,14 +260,14 @@ class Workflow:
             "fit_score": edit_pack.fit_score
         }
         self.style_rag.add_style_example_chunked(content_to_store, metadata)
-        
+
         # Mark as approved
         edit_pack.approved = 1
         if modified_content:
             edit_pack.content = modified_content
         self.db.commit()
         logger.info("approve_edit_pack: edit_pack_id=%s done in %.2fs", edit_pack_id, time.perf_counter() - t0)
-    
+
     def get_ranked_jobs(self) -> List[Dict]:
         """Get jobs ranked by fit score (all processed jobs, not just pending)."""
         t0 = time.perf_counter()
@@ -279,5 +286,5 @@ class Workflow:
                 "gaps": edit_pack.gap_list if edit_pack else [],
                 "edit_pack_id": edit_pack.id if edit_pack else None
             })
-        
+
         return results
