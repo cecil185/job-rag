@@ -33,6 +33,9 @@ if "evidence_rag" not in st.session_state:
     logger.info("Creating EvidenceRAG")
     st.session_state.evidence_rag = EvidenceRAG(st.session_state.db)
 
+st.session_state.setdefault("failed_extractions", [])
+st.session_state.setdefault("last_role_tags", [])
+
 
 def main():
     # Clear any aborted transaction from a previous failed query so the session is usable
@@ -95,7 +98,7 @@ def main():
         st.metric("Pending Edit Packs", edit_pack_count)
 
     # Main tabs
-    tab1, tab2, tab3 = st.tabs(["📥 Process Jobs", "📊 Ranked Jobs", "✅ Review Edit Packs"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📥 Process Jobs", "📊 Ranked Jobs", "✅ Review Edit Packs", "⚠️ Could not extract"])
 
     with tab1:
         st.header("Process Job Postings")
@@ -129,6 +132,11 @@ def main():
 
                 success_count = sum(1 for r in results if r.get("status") == "success")
                 st.success(f"Processed {success_count} jobs")
+
+                failed = [{"url": r["url"], "error": r.get("error", "")} for r in results if r.get("status") == "error"]
+                if failed:
+                    st.session_state.failed_extractions = failed
+                st.session_state.last_role_tags = tags or []
 
                 for result in results:
                     if result["status"] == "success":
@@ -332,6 +340,60 @@ def main():
                             st.rerun()
         else:
             st.info("No pending edit packs. Process some jobs first.")
+
+    with tab4:
+        st.header("Could not extract")
+        st.markdown("Jobs where URL extraction failed. Paste the job text below and retry.")
+
+        failed_extractions = st.session_state.failed_extractions
+        if not failed_extractions:
+            st.info("No failed extractions. Run Process Jobs and any failures will appear here.")
+        else:
+            tags = st.session_state.get("last_role_tags") or []
+            for i, item in enumerate(failed_extractions):
+                url = item["url"]
+                error = item.get("error", "")
+                with st.expander(f"🔗 {url}", expanded=True):
+                    if error:
+                        st.caption(f"Error: {error}")
+                    pasted = st.text_area(
+                        "Paste job requirements / job posting text",
+                        height=200,
+                        placeholder="Paste the full job posting text here...",
+                        key=f"failed_paste_{i}",
+                    )
+                    if st.button("Process with pasted text", key=f"failed_btn_{i}", type="primary"):
+                        if not pasted or not pasted.strip():
+                            st.warning("Please paste job text first.")
+                        else:
+                            with st.spinner("Processing..."):
+                                try:
+                                    results = st.session_state.workflow.process_job_links(
+                                        [url], tags, raw_text_override=pasted.strip()
+                                    )
+                                    if not results:
+                                        st.error("Processing failed: No result returned.")
+                                    else:
+                                        r = results[0]
+                                        status = r.get("status")
+                                        if status == "success":
+                                            st.session_state.failed_extractions = [
+                                                e for e in st.session_state.failed_extractions if e["url"] != url
+                                            ]
+                                            st.success("Job processed successfully.")
+                                            st.rerun()
+                                        elif status == "exists":
+                                            st.info("This job was already processed.")
+                                            st.session_state.failed_extractions = [
+                                                e for e in st.session_state.failed_extractions if e["url"] != url
+                                            ]
+                                            st.rerun()
+                                        else:
+                                            err = r.get("error") or "Unknown error"
+                                            st.error(f"Processing failed: {err}")
+                                except Exception as e:
+                                    msg = str(e).strip() or repr(e) or "An error occurred"
+                                    st.error(f"Processing failed: {msg}")
 
 
 if __name__ == "__main__":

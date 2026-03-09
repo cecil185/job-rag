@@ -156,6 +156,28 @@ def init_db() -> None:
         except Exception:
             conn.rollback()
 
+    # Ensure ON DELETE CASCADE on FKs from edit_packs and requirements to jobs (so DELETE FROM jobs cascades)
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "ALTER TABLE edit_packs DROP CONSTRAINT IF EXISTS edit_packs_job_id_fkey"
+            ))
+            conn.execute(text(
+                "ALTER TABLE edit_packs ADD CONSTRAINT edit_packs_job_id_fkey "
+                "FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE"
+            ))
+            conn.execute(text(
+                "ALTER TABLE requirements DROP CONSTRAINT IF EXISTS requirements_job_id_fkey"
+            ))
+            conn.execute(text(
+                "ALTER TABLE requirements ADD CONSTRAINT requirements_job_id_fkey "
+                "FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE"
+            ))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.warning("init_db: could not set CASCADE on job FKs: %s", e)
+
     # Enable pgvector extension
     logger.info("init_db: enabling pgvector extension")
     with engine.connect() as conn:

@@ -13,6 +13,33 @@ from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger(__name__)
 
+# Phrases that indicate the page is a block/error page (Cloudflare, cookie wall, etc.), not job content.
+_BLOCK_PAGE_PHRASES = (
+    "you have been blocked",
+    "you are unable to access",
+    "why have i been blocked",
+    "security service to protect itself",
+    "performance & security by cloudflare",
+    "sorry, you have been blocked",
+    "enable javascript",
+    "checking your browser",
+    "access denied",
+    "blocked by",
+)
+
+
+def looks_like_block_or_error_page(text: str) -> bool:
+    """
+    Return True if the text looks like a block/error page (e.g. Cloudflare, cookie wall)
+    rather than a job posting.
+    """
+    if not text or not text.strip():
+        return False
+    lower = text.strip().lower()
+    # Use first ~3k chars to avoid scanning huge pastes; block pages are short.
+    sample = lower[:3000] if len(lower) > 3000 else lower
+    return any(phrase in sample for phrase in _BLOCK_PAGE_PHRASES)
+
 
 class JobFetcher:
     """Fetches and extracts text from job postings."""
@@ -110,6 +137,13 @@ class JobFetcher:
 
             # Clean up text
             text = re.sub(r'\n{3,}', '\n\n', text)
+
+            if looks_like_block_or_error_page(text):
+                page.close()
+                raise Exception(
+                    "Page content appears to be a block or error page (e.g. Cloudflare), not a job posting. "
+                    "Use the 'Could not extract' tab to paste the job text."
+                )
 
             page.close()
             return {

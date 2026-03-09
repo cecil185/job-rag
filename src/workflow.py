@@ -14,12 +14,14 @@ from src.cover_letter_critic import CoverLetterCritic
 from src.cover_letter_generator import CoverLetterGenerator
 from src.cover_letter_reviser import CoverLetterReviser
 from src.database import EditPack
+from src.database import EvidenceMatch
 from src.database import get_db
 from src.database import Job
 from src.database import Requirement
 from src.edit_pack_generator import EditPackGenerator
 from src.evidence_rag import EvidenceRAG
 from src.job_fetcher import JobFetcher
+from src.job_fetcher import looks_like_block_or_error_page
 from src.requirement_extractor import RequirementExtractor
 from src.style_rag import StyleRAG
 
@@ -156,12 +158,20 @@ class Workflow:
         # Step 1: Check if job already exists
         existing_job = self.db.query(Job).filter(Job.url == url).first()
         if existing_job:
-            logger.info("_process_single_job: url=%s exists, skip in %.2fs", url[:60], time.perf_counter() - t0)
-            return {
-                "url": url,
-                "status": "exists",
-                "job_id": existing_job.id
-            }
+            if raw_text is not None:
+                # User is retrying with pasted text: delete existing job and reprocess with pasted content
+                logger.info("_process_single_job: url=%s exists but raw_text provided, replacing and reprocessing", url[:60])
+                for req in existing_job.requirements:
+                    self.db.query(EvidenceMatch).filter(EvidenceMatch.requirement_id == req.id).delete()
+                self.db.delete(existing_job)
+                self.db.commit()
+            else:
+                logger.info("_process_single_job: url=%s exists, skip in %.2fs", url[:60], time.perf_counter() - t0)
+                return {
+                    "url": url,
+                    "status": "exists",
+                    "job_id": existing_job.id
+                }
 
         # Step 2: Fetch job posting or use provided raw_text
         if raw_text is not None:
@@ -171,6 +181,13 @@ class Workflow:
             t_fetch = time.perf_counter()
             job_data = fetcher.fetch(url)
             logger.info("_process_single_job: fetch done in %.2fs", time.perf_counter() - t_fetch)
+
+        text_to_use = job_data.get("text") or ""
+        if looks_like_block_or_error_page(text_to_use):
+            raise ValueError(
+                "Content appears to be a block or error page (e.g. Cloudflare), not a job posting. "
+                "Paste the actual job text in the 'Could not extract' tab."
+            )
 
         # Step 3: Store job
         job = Job(
