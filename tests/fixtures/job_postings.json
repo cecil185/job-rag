@@ -1,0 +1,81 @@
+{
+  "job_01": {
+    "raw_text": "Senior Backend Engineer\n\nWe are looking for a Senior Backend Engineer to build scalable APIs and data pipelines.\n\nRequirements:\n- 5+ years of experience with Java or Kotlin\n- Strong experience with REST APIs and microservices\n- Experience with AWS (Lambda, SQS, DynamoDB)\n- SQL and database design\n- Collaborate with product and frontend teams\n\nNice to have: Kafka, event-driven architecture, Terraform.",
+    "expected_requirements": [
+      "Java or Kotlin",
+      "REST APIs",
+      "microservices",
+      "AWS",
+      "Lambda",
+      "SQS",
+      "DynamoDB",
+      "SQL",
+      "database design",
+      "Kafka",
+      "event-driven architecture",
+      "Terraform"
+    ]
+  },
+  "job_02": {
+    "raw_text": "Full Stack Developer\n\nJoin our team to build customer-facing web applications.\n\nMust have:\n- JavaScript/TypeScript and React\n- Node.js or similar backend experience\n- RESTful API design\n- Git and CI/CD\n- Strong communication skills\n\nResponsibilities: Implement new features, code review, participate in sprint planning.",
+    "expected_requirements": [
+      "JavaScript",
+      "TypeScript",
+      "React",
+      "Node.js",
+      "RESTful API",
+      "Git",
+      "CI/CD",
+      "code review",
+      "sprint planning"
+    ]
+  },
+  "job_03": {
+    "raw_text": "Data Engineer\n\nBuild and maintain data pipelines and warehouses.\n\nRequirements:\n- SQL and data modeling\n- Experience with Spark or similar big data tools\n- ETL design and implementation\n- Cloud platforms (GCP or Azure)\n- Work with analysts to define data needs\n\nPreferred: dbt, Airflow, data quality tooling.",
+    "expected_requirements": [
+      "SQL",
+      "data modeling",
+      "Spark",
+      "ETL",
+      "GCP",
+      "Azure",
+      "dbt",
+      "Airflow",
+      "data quality"
+    ]
+  },
+  "job_04": {
+    "raw_text": "DevOps Engineer\n\nWe need a DevOps Engineer to own our infrastructure and deployment.\n\nMust haves:\n- Linux system administration\n- Docker and Kubernetes\n- CI/CD (Jenkins, GitHub Actions, or similar)\n- Terraform or Infrastructure as Code\n- Monitoring and logging (Prometheus, Grafana, ELK)\n\nYou will: automate deployments, improve reliability, and support on-call rotation.",
+    "expected_requirements": [
+      "Linux",
+      "Docker",
+      "Kubernetes",
+      "CI/CD",
+      "Jenkins",
+      "GitHub Actions",
+      "Terraform",
+      "Infrastructure as Code",
+      "Prometheus",
+      "Grafana",
+      "ELK",
+      "automate deployments",
+      "on-call"
+    ]
+  },
+  "job_05": {
+    "raw_text": "ML Engineer\n\nHelp us productionize machine learning models.\n\nRequirements:\n- Strong programming in Python\n- ML frameworks (TensorFlow, PyTorch, or scikit-learn)\n- Experience deploying models (batch and real-time)\n- SQL and data pipelines\n- MLOps or model monitoring\n\nResponsibilities: design experiments, collaborate with data scientists, optimize inference latency.",
+    "expected_requirements": [
+      "Python",
+      "TensorFlow",
+      "PyTorch",
+      "scikit-learn",
+      "deploying models",
+      "SQL",
+      "data pipelines",
+      "MLOps",
+      "model monitoring",
+      "experiments",
+      "inference"
+    ]
+  }
+}

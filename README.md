@@ -48,6 +48,18 @@ A resume editor that uses Evidence RAG and Style RAG to help tailor your resume 
 4. **Approve Edit Packs**: Review and approve/edit packs in the "Review Edit Packs" tab
    - Approved packs are automatically added to Style RAG for future use
 
+## Running evals
+
+The regression suite runs requirement extraction on fixed job-posting fixtures and compares results to expected outputs. Use it to catch regressions after LLM or RAG changes.
+
+```bash
+make eval
+```
+
+- **Fixtures**: `tests/fixtures/job_postings.json` — each case has `raw_text` and `expected_requirements`. Add cases from the DB with `poetry run python scripts/export_job_fixtures.py` (then add `expected_requirements` by hand).
+- **Results**: Written to `data/eval/extraction_results.json` (metrics, pass/fail, latency per case). The command exits with code 0 if all pass, non-zero if any fail (e.g. for CI).
+- **RAG evals** (optional): Set `EVAL_RAG=1` and add `tests/fixtures/evidence/evidence_docs.json` and `expected_retrieval.json` to run evidence retrieval checks. Requires a running DB.
+
 ## Architecture
 
 - **Evidence RAG**: Stores resume snippets, project descriptions, brag-doc entries

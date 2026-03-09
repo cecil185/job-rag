@@ -1,0 +1,54 @@
+[
+  {
+    "source_id": "backend",
+    "text": "Five years of experience with Java and Kotlin. Built scalable REST APIs and microservices. Deployed and operated services on AWS using Lambda, SQS, and DynamoDB. Strong SQL and database design. Worked with Kafka and event-driven architecture. Used Terraform for infrastructure."
+  },
+  {
+    "source_id": "frontend",
+    "text": "Developed customer-facing web apps with JavaScript, TypeScript, and React. Backend experience with Node.js. Designed and implemented RESTful APIs. Git workflows, CI/CD pipelines, code review, and sprint planning with product and engineering teams."
+  },
+  {
+    "source_id": "data_ml",
+    "text": "Data pipelines and warehouses with SQL and data modeling. Experience with Spark and ETL design. Worked on GCP and Azure. Used dbt, Airflow, and data quality tooling. Deployed ML models with TensorFlow and PyTorch. MLOps and model monitoring. Optimized inference latency."
+  },
+  {
+    "source_id": "marketing",
+    "text": "Led B2B marketing campaigns and demand generation. SEO, content strategy, and Google Analytics. Managed social media and email nurture. Brand positioning and competitive analysis."
+  },
+  {
+    "source_id": "sales",
+    "text": "Enterprise sales and account management. Quarterly quotas, pipeline forecasting, and CRM. Discovery calls, demos, and contract negotiation. Cross-sell and renewal cycles."
+  },
+  {
+    "source_id": "legal",
+    "text": "Corporate counsel and contract review. NDAs, vendor agreements, and compliance. IP and privacy (GDPR, CCPA). Litigation support and outside counsel coordination."
+  },
+  {
+    "source_id": "teaching",
+    "text": "Curriculum design and classroom instruction. STEM outreach and after-school programs. Grading, office hours, and student advising. Workshop facilitation and online learning modules."
+  },
+  {
+    "source_id": "design",
+    "text": "UI/UX design and user research. Figma, prototypes, and design systems. Accessibility (WCAG) and usability testing. Collaborated with product and engineering on feature specs."
+  },
+  {
+    "source_id": "qa",
+    "text": "Manual and automated testing. Test plans, bug tracking, and regression. Selenium and Playwright for E2E. Worked with developers on CI and release process."
+  },
+  {
+    "source_id": "product",
+    "text": "Product management and roadmap. User stories, prioritization, and sprint coordination. Metrics, A/B tests, and stakeholder updates. Some exposure to APIs and data pipelines from PM side."
+  },
+  {
+    "source_id": "support",
+    "text": "Customer support and technical troubleshooting. Ticketing systems, knowledge base, and escalations. On-call rotation and incident response. Documented runbooks and FAQs."
+  },
+  {
+    "source_id": "writing",
+    "text": "Technical writing and documentation. API docs, user guides, and release notes. Markdown, versioning, and doc-as-code workflows. Edited engineer-written content."
+  },
+  {
+    "source_id": "hr",
+    "text": "Recruiting and talent acquisition. Sourcing, screening, and interview coordination. Diversity initiatives and employer branding. Worked with hiring managers on requirements and offers."
+  }
+]

@@ -31,7 +31,13 @@ db-clear:
 	docker-compose exec -T postgres psql -U jobrag -d jobrag_db -c "TRUNCATE jobs, requirements, evidence_matches, edit_packs CASCADE;"
 
 test:
-	poetry run pytest
+	docker-compose run --rm app pytest
+
+requirement-extraction-eval:
+	docker-compose run --rm app python scripts/run_evals.py
+
+evidence-rag-eval:
+	docker-compose run --rm -e EVAL_RAG=1 app python scripts/run_evals.py
 
 test-job:
 	docker-compose exec app poetry run python scripts/test_job_fetch.py

@@ -1,0 +1,20 @@
+{
+  "backend": [
+    { "requirement": "Java or Kotlin", "expected_source_id": "backend" },
+    { "requirement": "REST APIs and microservices", "expected_source_id": "backend" },
+    { "requirement": "AWS Lambda SQS DynamoDB", "expected_source_id": "backend" },
+    { "requirement": "SQL and database design", "expected_source_id": "backend" }
+  ],
+  "frontend": [
+    { "requirement": "JavaScript TypeScript React", "expected_source_id": "frontend" },
+    { "requirement": "Node.js backend", "expected_source_id": "frontend" },
+    { "requirement": "RESTful API design", "expected_source_id": "frontend" },
+    { "requirement": "Git and CI/CD", "expected_source_id": "frontend" }
+  ],
+  "data_ml": [
+    { "requirement": "SQL and data modeling", "expected_source_id": "data_ml" },
+    { "requirement": "Spark and ETL", "expected_source_id": "data_ml" },
+    { "requirement": "dbt Airflow data quality", "expected_source_id": "data_ml" },
+    { "requirement": "TensorFlow PyTorch MLOps", "expected_source_id": "data_ml" }
+  ]
+}
