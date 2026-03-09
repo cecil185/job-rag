@@ -7,6 +7,8 @@ import streamlit as st
 from sqlalchemy.orm import Session
 
 from scripts.pdf_to_txt import pdf_to_text
+from sqlalchemy.orm import joinedload
+
 from src.database import EditPack
 from src.database import get_db
 from src.database import init_db
@@ -154,6 +156,13 @@ def main():
                     st.write(f"**URL:** {job['url']}")
                     st.write(f"**Fit Score:** {job['fit_score']:.2%}")
 
+                    if job.get("requirements"):
+                        st.write("**Requirements:**")
+                        for req in job["requirements"]:
+                            conf = req.get("confidence")
+                            conf_str = f" — {conf:.0%}" if conf is not None else ""
+                            st.write(f"- {req['text']}{conf_str}")
+
                     if job['gaps']:
                         st.write("**Gaps:**")
                         for gap in job['gaps']:
@@ -263,9 +272,14 @@ def main():
 
         # Get pending edit packs
         logger.info("Loading pending edit packs")
-        pending_packs = st.session_state.db.query(EditPack).filter(
-            EditPack.approved == 0
-        ).join(Job).order_by(EditPack.fit_score.desc()).all()
+        pending_packs = (
+            st.session_state.db.query(EditPack)
+            .filter(EditPack.approved == 0)
+            .join(Job)
+            .options(joinedload(EditPack.job).joinedload(Job.requirements))
+            .order_by(EditPack.fit_score.desc())
+            .all()
+        )
 
         if pending_packs:
             for pack in pending_packs:
@@ -273,6 +287,12 @@ def main():
                 with st.expander(f"{job.url} - Fit: {pack.fit_score:.2%}"):
                     st.write(f"**Job URL:** {job.url}")
                     st.write(f"**Fit Score:** {pack.fit_score:.2%}")
+
+                    if pack.job.requirements:
+                        st.write("**Requirements:**")
+                        for req in pack.job.requirements:
+                            conf_str = f" — {req.confidence:.0%}" if req.confidence is not None else ""
+                            st.write(f"- {req.text}{conf_str}")
 
                     if pack.gap_list:
                         st.write("**Gaps:**")
@@ -307,8 +327,7 @@ def main():
 
                     with col2:
                         if st.button("❌ Reject", key=f"reject_{pack.id}"):
-                            pack.approved = -1
-                            st.session_state.db.commit()
+                            st.session_state.workflow.reject_edit_pack(pack.id)
                             st.info("Edit pack rejected")
                             st.rerun()
         else:

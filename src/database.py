@@ -49,6 +49,9 @@ class Requirement(Base):  # type: ignore[valid-type,misc]
     category = Column(String)  # skills, responsibilities, must_haves, keywords
     text = Column(Text, nullable=False)
     priority = Column(String)  # must_have, nice_to_have
+    confidence = Column(Float, nullable=True)  # [0, 1] from extractor
+    validated = Column(Boolean, nullable=True)  # True if found in raw_text
+    raw_snippet = Column(Text, nullable=True)  # excerpt from raw_text that supports this requirement
     created_at = Column(DateTime, default=datetime.utcnow)
 
     job = relationship("Job", back_populates="requirements")
@@ -111,6 +114,19 @@ class EditPack(Base):  # type: ignore[valid-type,misc]
     job = relationship("Job", back_populates="edit_packs")
 
 
+class AuditLog(Base):  # type: ignore[valid-type,misc]
+    """Audit log for extraction runs, edit pack approval/rejection."""
+    __tablename__ = "audit_log"
+
+    id = Column(Integer, primary_key=True)
+    entity_type = Column(String, nullable=False)  # e.g. "job", "edit_pack"
+    entity_id = Column(Integer, nullable=False)
+    action = Column(String, nullable=False)  # e.g. "extraction_run", "edit_pack_approved", "edit_pack_rejected"
+    actor = Column(String, default="system")
+    at = Column(DateTime, default=datetime.utcnow)
+    payload = Column(JSON, nullable=True)  # optional details
+
+
 # Database setup
 engine = create_engine(settings.database_url)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -121,13 +137,21 @@ def init_db() -> None:
     from sqlalchemy import text
 
     logger.info("init_db: creating tables")
-    # Create tables
+    # Create tables (including audit_log and new columns for new installs)
     Base.metadata.create_all(bind=engine)
 
-    # Drop legacy title column from jobs if present (replaced by url for display)
+    # Migrations for existing DBs: add Requirement confidence/validation columns if missing
     with engine.connect() as conn:
         try:
             conn.execute(text("ALTER TABLE jobs DROP COLUMN IF EXISTS title"))
+            for col, sql_type in [
+                ("confidence", "FLOAT"),
+                ("validated", "BOOLEAN"),
+                ("raw_snippet", "TEXT"),
+            ]:
+                conn.execute(text(
+                    f"ALTER TABLE requirements ADD COLUMN IF NOT EXISTS {col} {sql_type}"
+                ))
             conn.commit()
         except Exception:
             conn.rollback()

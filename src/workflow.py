@@ -1,6 +1,7 @@
 """Workflow orchestration."""
 import logging
 import time
+from datetime import datetime
 from typing import Any
 from typing import List
 from typing import Optional
@@ -8,6 +9,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from src.application_answer_generator import ApplicationAnswerGenerator
+from src.audit import write_audit_event
 from src.cover_letter_critic import CoverLetterCritic
 from src.cover_letter_generator import CoverLetterGenerator
 from src.cover_letter_reviser import CoverLetterReviser
@@ -180,27 +182,30 @@ class Workflow:
         self.db.commit()
         self.db.refresh(job)
 
-        # Step 4: Extract requirements (raw_text must be non-empty for LLM)
+        # Step 4: Extract requirements with confidence and validation (raw_text must be non-empty for LLM)
         if not (job.raw_text and job.raw_text.strip()):
             raise ValueError("Job raw_text is empty; cannot extract requirements.")
         t_extract = time.perf_counter()
         try:
-            requirements_obj = self.requirement_extractor.extract(job.raw_text)
+            req_items = self.requirement_extractor.extract_with_confidence_and_validation(job.raw_text)
         except ValueError as e:
             if "max token limit" in str(e) or "MAX_PROMPT_TOKENS" in str(e):
                 self.db.delete(job)
                 self.db.commit()
                 logger.warning("_process_single_job: deleted job id=%s due to token limit", job.id)
             raise
-        logger.info("_process_single_job: requirement_extractor.extract done in %.2fs", time.perf_counter() - t_extract)
+        logger.info("_process_single_job: requirement_extractor.extract_with_confidence_and_validation done in %.2fs", time.perf_counter() - t_extract)
         requirements = []
 
-        for req_item in requirements_obj.to_requirement_items():
+        for req_item in req_items:
             req = Requirement(
                 job_id=job.id,
                 category=req_item.category,
                 text=req_item.text,
-                priority=req_item.priority
+                priority=req_item.priority,
+                confidence=req_item.confidence,
+                validated=req_item.validated,
+                raw_snippet=req_item.raw_snippet,
             )
             self.db.add(req)
             requirements.append(req)
@@ -208,6 +213,23 @@ class Workflow:
         self.db.commit()
         for req in requirements:
             self.db.refresh(req)
+
+        # Audit: extraction_run
+        confs = [r.confidence for r in requirements if r.confidence is not None]
+        validated_count = sum(1 for r in requirements if r.validated is True)
+        write_audit_event(
+            self.db,
+            entity_type="job",
+            entity_id=job.id,
+            action="extraction_run",
+            payload={
+                "requirements_count": len(requirements),
+                "mean_confidence": round(sum(confs) / len(confs), 4) if confs else None,
+                "validated_count": validated_count,
+                "not_validated_count": len(requirements) - validated_count,
+            },
+        )
+        self.db.commit()
 
         # Step 5: Evidence RAG retrieval
         t_evidence = time.perf_counter()
@@ -274,19 +296,54 @@ class Workflow:
         }
         self.style_rag.add_style_example_chunked(content_to_store, metadata)
 
-        # Mark as approved
+        # Mark as approved and set approved_at
         edit_pack.approved = 1
+        edit_pack.approved_at = datetime.utcnow()
         if modified_content:
             edit_pack.content = modified_content
         self.db.commit()
+
+        write_audit_event(
+            self.db,
+            entity_type="edit_pack",
+            entity_id=edit_pack_id,
+            action="edit_pack_approved",
+            payload={"content_modified": modified_content is not None},
+        )
+        self.db.commit()
         logger.info("approve_edit_pack: edit_pack_id=%s done in %.2fs", edit_pack_id, time.perf_counter() - t0)
+
+    def reject_edit_pack(self, edit_pack_id: int, reason: Optional[str] = None) -> None:
+        """Reject an edit pack (set approved=-1) and write audit event."""
+        t0 = time.perf_counter()
+        logger.info("reject_edit_pack: edit_pack_id=%s start", edit_pack_id)
+        edit_pack = self.db.query(EditPack).filter(EditPack.id == edit_pack_id).first()
+        if not edit_pack:
+            raise ValueError(f"Edit pack {edit_pack_id} not found")
+        edit_pack.approved = -1
+        self.db.commit()
+        write_audit_event(
+            self.db,
+            entity_type="edit_pack",
+            entity_id=edit_pack_id,
+            action="edit_pack_rejected",
+            payload={"reason": reason} if reason else None,
+        )
+        self.db.commit()
+        logger.info("reject_edit_pack: edit_pack_id=%s done in %.2fs", edit_pack_id, time.perf_counter() - t0)
 
     def get_ranked_jobs(self) -> List[dict[str, Any]]:
         """Get jobs ranked by fit score (all processed jobs, not just pending)."""
+        from sqlalchemy.orm import joinedload
+
         t0 = time.perf_counter()
-        jobs = self.db.query(Job).join(EditPack).order_by(
-            EditPack.fit_score.desc()
-        ).all()
+        jobs = (
+            self.db.query(Job)
+            .join(EditPack)
+            .options(joinedload(Job.requirements))
+            .order_by(EditPack.fit_score.desc())
+            .all()
+        )
         logger.info("get_ranked_jobs: query done in %.2fs, %d jobs", time.perf_counter() - t0, len(jobs))
 
         results = []
@@ -297,7 +354,11 @@ class Workflow:
                 "url": job.url,
                 "fit_score": edit_pack.fit_score if edit_pack else 0.0,
                 "gaps": edit_pack.gap_list if edit_pack else [],
-                "edit_pack_id": edit_pack.id if edit_pack else None
+                "edit_pack_id": edit_pack.id if edit_pack else None,
+                "requirements": [
+                    {"text": r.text, "confidence": r.confidence}
+                    for r in (job.requirements or [])
+                ],
             })
 
         return results

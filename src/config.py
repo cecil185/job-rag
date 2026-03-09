@@ -18,6 +18,9 @@ class Settings(BaseSettings):  # type: ignore[misc]
     llm_provider: str = "openai"  # or "anthropic"
     llm_model: str = "gpt-4o-mini"
 
+    # Requirement extraction
+    skip_requirement_validation: bool = False  # Set True to skip validation against raw_text (e.g. for speed in dev)
+
     # RAG settings
     evidence_chunk_size: int = 50
     evidence_chunk_overlap: int = 10

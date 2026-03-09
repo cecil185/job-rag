@@ -38,11 +38,74 @@ def _filter_requirements_dict(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+def _parse_entries(raw_list: list) -> List[dict[str, Any]]:
+    """Normalize LLM list: each element can be a string or {text, confidence}. Returns list of {text, confidence?}."""
+    out: List[dict[str, Any]] = []
+    for x in raw_list or []:
+        if isinstance(x, str):
+            out.append({"text": x, "confidence": None})
+        elif isinstance(x, dict) and isinstance(x.get("text"), str):
+            out.append({"text": x["text"], "confidence": x.get("confidence")})
+    return out
+
+
+def _normalize_for_match(s: str) -> str:
+    """Normalize text for heuristic validation: lowercase, collapse whitespace."""
+    return " ".join((s or "").lower().split())
+
+
+def _validate_requirement_against_source(requirement_text: str, raw_text: str, snippet_max_len: int = 200) -> tuple[bool, Optional[str]]:
+    """
+    Heuristic validation: check if requirement (or key phrase) appears in raw_text.
+    Returns (validated, raw_snippet). Snippet is a short excerpt from raw_text that contains the match.
+    """
+    if not raw_text or not requirement_text:
+        return False, None
+    raw_norm = _normalize_for_match(raw_text)
+    req_norm = _normalize_for_match(requirement_text)
+    if not req_norm:
+        return False, None
+    # Prefer full phrase match; fall back to significant substring (e.g. first 5+ words)
+    if req_norm in raw_norm:
+        idx = raw_norm.find(req_norm)
+        # Map back to original raw_text for snippet (approximate by using same span length)
+        start = max(0, idx - 50)
+        end = min(len(raw_norm), idx + len(req_norm) + 80)
+        snippet = raw_text[start:end].strip()
+        if len(snippet) > snippet_max_len:
+            snippet = snippet[:snippet_max_len] + "..."
+        return True, snippet or None
+    # Try key phrase: longest substring of 3+ words
+    words = req_norm.split()
+    for n in range(min(5, len(words)), 2, -1):
+        phrase = " ".join(words[:n])
+        if len(phrase) < 10:
+            continue
+        if phrase in raw_norm:
+            idx = raw_norm.find(phrase)
+            start = max(0, idx - 40)
+            end = min(len(raw_norm), idx + len(phrase) + 60)
+            snippet = raw_text[start:end].strip()
+            if len(snippet) > snippet_max_len:
+                snippet = snippet[:snippet_max_len] + "..."
+            return True, snippet or None
+    return False, None
+
+
 class RequirementItem(BaseModel):
     """Single requirement item."""
     text: str = Field(description="The requirement text")
     category: str = Field(description="One of: skills, responsibilities, must_haves, keywords")
     priority: str = Field(description="One of: must_have, nice_to_have")
+    confidence: Optional[float] = Field(default=None, description="Confidence score in [0, 1]")
+    validated: Optional[bool] = Field(default=None, description="Whether requirement was found in source text")
+    raw_snippet: Optional[str] = Field(default=None, description="Excerpt from source that supports the requirement")
+
+
+class RequirementEntry(BaseModel):
+    """Single entry with text and confidence (for LLM response)."""
+    text: str = Field(description="The requirement text")
+    confidence: float = Field(ge=0, le=1, description="Confidence that this is a real requirement from the posting")
 
 
 class Requirements(BaseModel):
@@ -53,7 +116,7 @@ class Requirements(BaseModel):
     keywords: List[str] = Field(default_factory=list, description="Important keywords and phrases")
 
     def to_requirement_items(self) -> List[RequirementItem]:
-        """Convert to list of RequirementItem objects."""
+        """Convert to list of RequirementItem objects (no confidence/validation)."""
         items = []
 
         for skill in self.skills:
@@ -69,6 +132,14 @@ class Requirements(BaseModel):
             items.append(RequirementItem(text=keyword, category="keywords", priority="nice_to_have"))
 
         return items
+
+
+class RequirementsWithConfidence(BaseModel):
+    """Structured requirements with per-item confidence (LLM response)."""
+    skills: List[RequirementEntry] = Field(default_factory=list)
+    responsibilities: List[RequirementEntry] = Field(default_factory=list)
+    must_haves: List[RequirementEntry] = Field(default_factory=list)
+    keywords: List[RequirementEntry] = Field(default_factory=list)
 
 
 def _count_tokens(text: str, encoding: tiktoken.Encoding) -> int:
@@ -145,6 +216,92 @@ Each field should be a list of strings. Be specific and comprehensive."""
             # Fallback: try to parse manually
             print(f"Warning: Failed to parse JSON response: {e}")
             return self._fallback_extract(job_text)
+
+    def extract_with_confidence_and_validation(self, job_text: str) -> List[RequirementItem]:
+        """
+        Extract requirements with per-item confidence and validate each against job_text.
+        Returns list of RequirementItem with confidence, validated, and raw_snippet set.
+        """
+        if not self.client:
+            raise ValueError("OpenAI API key not configured")
+        if not job_text or not job_text.strip():
+            raise ValueError("Job text is empty; cannot extract requirements.")
+
+        t0 = time.perf_counter()
+        logger.info("RequirementExtractor.extract_with_confidence_and_validation: calling LLM")
+
+        system_content = (
+            "You are an expert at analyzing job postings and extracting structured requirements. "
+            "Always return valid JSON. For each requirement, provide a confidence score from 0 to 1 "
+            "(1 = clearly stated in the posting, 0.5 = implied, 0.2 = guessed)."
+        )
+        template = """Extract structured requirements from this job posting. Be thorough and specific.
+For each item, also give a confidence score (0-1): how confident you are that this is a real requirement from the posting.
+
+Job Posting:
+{job_text}
+
+Return a JSON object with: skills, responsibilities, must_haves, keywords.
+Each field must be a list of objects with "text" and "confidence" (number 0-1).
+Example: {{ "skills": [{{ "text": "Python", "confidence": 0.95 }}, {{ "text": "AWS", "confidence": 0.8 }}], ... }}"""
+
+        prompt = template.format(job_text=job_text)
+        messages = [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": prompt},
+        ]
+        total_tokens = sum(_count_tokens(m["content"], self._encoding) for m in messages)
+        if total_tokens > MAX_PROMPT_TOKENS:
+            raise ValueError(
+                f"Prompt exceeds max token limit: {total_tokens} > {MAX_PROMPT_TOKENS}. "
+                "Reduce job text or increase MAX_PROMPT_TOKENS."
+            )
+
+        response = self.client.chat.completions.create(
+            model=settings.llm_model,
+            messages=messages,
+            response_format={"type": "json_object"},
+            temperature=0.3,
+        )
+        logger.info("RequirementExtractor.extract_with_confidence_and_validation: LLM done in %.2fs", time.perf_counter() - t0)
+        result_dict = json.loads(response.choices[0].message.content or "{}")
+
+        items: List[RequirementItem] = []
+        raw_lower = (job_text or "").lower()
+
+        def entries_with_confidence(key: str, priority: str) -> None:
+            for entry in _parse_entries(result_dict.get(key) or []):
+                if _should_exclude_requirement(entry["text"]):
+                    continue
+                conf = entry.get("confidence")
+                if conf is None:
+                    conf = 0.8
+                validated = False
+                raw_snippet: Optional[str] = None
+                if not settings.skip_requirement_validation:
+                    validated, raw_snippet = _validate_requirement_against_source(entry["text"], job_text)
+                items.append(
+                    RequirementItem(
+                        text=entry["text"],
+                        category=key,
+                        priority=priority,
+                        confidence=conf,
+                        validated=validated if not settings.skip_requirement_validation else None,
+                        raw_snippet=raw_snippet,
+                    )
+                )
+
+        entries_with_confidence("skills", "must_have")
+        entries_with_confidence("responsibilities", "nice_to_have")
+        entries_with_confidence("must_haves", "must_have")
+        entries_with_confidence("keywords", "nice_to_have")
+
+        logger.info(
+            "RequirementExtractor.extract_with_confidence_and_validation: done in %.2fs, %d items",
+            time.perf_counter() - t0,
+            len(items),
+        )
+        return items
 
     def _fallback_extract(self, job_text: str) -> Requirements:
         """Fallback extraction if JSON parsing fails."""
