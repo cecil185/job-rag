@@ -1,0 +1,23 @@
+Critique this cover letter draft for the following job.
+
+Job: {job_url}
+
+Key requirements from the posting:
+{requirements_text}
+
+Candidate evidence available (proof points the letter could use):
+{evidence_context}
+
+---
+DRAFT COVER LETTER:
+{draft}
+---
+
+Provide a structured critique covering:
+1. **Tone**: Too generic, too casual, or appropriate?
+2. **Gaps**: Which requirements from the job are not addressed or not backed by evidence in the letter?
+3. **Repetition**: Any redundant phrases or bullets?
+4. **ATS/keywords**: Missing important terms from the job posting that could help pass ATS?
+5. **Structure**: Paragraph flow, hook, "why you" evidence, closing.
+
+Output the critique only (no JSON). Use clear section headers or bullets so the reviser can address each point.

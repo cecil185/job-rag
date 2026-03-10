@@ -8,6 +8,7 @@ from openai import OpenAI
 
 from src.config import settings
 from src.database import Job
+from src.prompt_loader import load_prompt
 from src.database import Requirement
 from src.evidence_rag import EvidenceRAG
 from src.style_rag import StyleRAG
@@ -50,31 +51,19 @@ class CoverLetterGenerator:
         evidence_context = self._build_evidence_context(requirements, evidence_map)
         style_context = "\n\n".join([ex["content"] for ex in style_examples]) if style_examples else ""
 
-        prompt = f"""Write a professional cover letter for this job application.
-
-Job: {job.url or 'Job'}
-
-Key requirements from the posting:
-{self._format_requirements(requirements)}
-
-Candidate evidence (proof points from resume/projects to weave in):
-{evidence_context}
-
-Tone/style reference (match this voice where appropriate):
-{style_context or "(No style examples yet; use professional, concise tone.)"}
-
-Instructions:
-- 3–4 short paragraphs: hook, why them, why you (with specific evidence), closing
-- Weave in concrete proof points from the evidence above; do not make unsupported claims
-- Match the role language where it fits
-- Stay focused - talk about only 1 project per paragraph - 1-3 projects in total.
-- Output the letter only (no meta commentary). No greeting or sign off."""
+        style_display = style_context or "(No style examples yet; use professional, concise tone.)"
+        prompt = load_prompt("cover_letter_user").format(
+            job_url=job.url or "Job",
+            requirements_formatted=self._format_requirements(requirements),
+            evidence_context=evidence_context,
+            style_context=style_display,
+        )
 
         logger.info("CoverLetterGenerator.generate: calling LLM")
         response = self.client.chat.completions.create(
             model=settings.llm_model,
             messages=[
-                {"role": "system", "content": "You are an expert cover letter writer. Ground every claim in the evidence provided. Be specific and professional."},
+                {"role": "system", "content": load_prompt("cover_letter_system")},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.6

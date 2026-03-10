@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from pydantic import Field
 
 from src.config import settings
+from src.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -171,21 +172,8 @@ class RequirementExtractor:
         t0 = time.perf_counter()
         logger.info("RequirementExtractor.extract: calling LLM")
 
-        system_content = "You are an expert at analyzing job postings and extracting structured requirements. Always return valid JSON."
-        template = """Extract structured requirements from this job posting. Be thorough and specific.
-
-Job Posting:
-{job_text}
-
-Extract:
-1. Technical skills and technologies (programming languages, frameworks, tools)
-2. Job responsibilities and duties
-3. Must-have requirements (non-negotiable qualifications)
-4. Important keywords and phrases
-
-Return a JSON object with these fields: skills, responsibilities, must_haves, keywords.
-Each field should be a list of strings. Be specific and comprehensive."""
-
+        system_content = load_prompt("requirement_extract_system")
+        template = load_prompt("requirement_extract_user")
         prompt = template.format(job_text=job_text)
         messages = [
             {"role": "system", "content": system_content},
@@ -230,21 +218,8 @@ Each field should be a list of strings. Be specific and comprehensive."""
         t0 = time.perf_counter()
         logger.info("RequirementExtractor.extract_with_confidence_and_validation: calling LLM")
 
-        system_content = (
-            "You are an expert at analyzing job postings and extracting structured requirements. "
-            "Always return valid JSON. For each requirement, provide a confidence score from 0 to 1 "
-            "(1 = clearly stated in the posting, 0.5 = implied, 0.2 = guessed)."
-        )
-        template = """Extract structured requirements from this job posting. Be thorough and specific.
-For each item, also give a confidence score (0-1): how confident you are that this is a real requirement from the posting.
-
-Job Posting:
-{job_text}
-
-Return a JSON object with: skills, responsibilities, must_haves, keywords.
-Each field must be a list of objects with "text" and "confidence" (number 0-1).
-Example: {{ "skills": [{{ "text": "Python", "confidence": 0.95 }}, {{ "text": "AWS", "confidence": 0.8 }}], ... }}"""
-
+        system_content = load_prompt("requirement_extract_confidence_system")
+        template = load_prompt("requirement_extract_confidence_user")
         prompt = template.format(job_text=job_text)
         messages = [
             {"role": "system", "content": system_content},

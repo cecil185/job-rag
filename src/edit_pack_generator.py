@@ -9,6 +9,7 @@ from openai import OpenAI
 
 from src.config import settings
 from src.database import Job
+from src.prompt_loader import load_prompt
 from src.database import Requirement
 from src.evidence_rag import EvidenceRAG
 from src.style_rag import StyleRAG
@@ -67,33 +68,19 @@ Gap phrases (requirements with NO or weak evidence — do NOT invent bullets for
 {chr(10).join("- " + g for g in gaps)}
 
 """
-
-        prompt = f"""Generate a Resume Edit Pack for this job posting.
-
-Job: {job.url or 'Job'}
-
-Requirements:
-{self._format_requirements(requirements)}
-
-Evidence (the ONLY source of facts — you may only paraphrase or combine this text; do not add anything not stated here). Labels: "(on current resume)" = already on the user's base resume; "(not on resume)" = from brag doc/projects, not yet on the resume.
-{evidence_context}
-{gap_block}Style Examples (preferred writing style):
-{style_context}
-
-Generate a markdown document with:
-1. **Bullets to Add**: Only use evidence marked "(not on resume)". Each bullet MUST cite at least one such Evidence #N. The bullet text may ONLY contain information that appears in the cited evidence. Do NOT suggest bullets that merely reword or paraphrase content already on the resume — every bullet must describe something that does NOT currently appear on the resume (different project, outcome, metric, or responsibility). Skip this section if there is no such evidence.
-2. **Projects to Highlight**: For each project you recommend emphasizing, name it and explain WHY it should be highlighted for this job (e.g. which requirements it supports, what signal it sends). Only reference projects/sources that appear in the Evidence list.
-
-Rules (strict):
-- Bullets to Add: only from evidence marked (not on resume). Each must be genuinely new content — not a rephrasing of bullets already on the resume.
-- Only use wording and facts that appear in the Evidence excerpts above. Do not invent metrics, technologies, or outcomes.
-- For requirements with no evidence, do not make up a bullet. You may reword evidence to include gap phrases as keywords where relevant."""
+        prompt = load_prompt("edit_pack_user").format(
+            job_url=job.url or "Job",
+            requirements_formatted=self._format_requirements(requirements),
+            evidence_context=evidence_context,
+            gap_block=gap_block,
+            style_context=style_context,
+        )
 
         logger.info("EditPackGenerator.generate: calling LLM (edit pack)")
         response = self.client.chat.completions.create(
             model=settings.llm_model,
             messages=[
-                {"role": "system", "content": "You are an expert resume writer. Suggest only bullets that are directly supported by the evidence and that do NOT already appear on the resume (no rewording of existing bullets). For projects to highlight, always explain why each project is relevant to this job. Every bullet must cite its evidence source."},
+                {"role": "system", "content": load_prompt("edit_pack_system")},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3

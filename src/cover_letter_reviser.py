@@ -8,6 +8,7 @@ from openai import OpenAI
 
 from src.config import settings
 from src.database import Job
+from src.prompt_loader import load_prompt
 from src.database import Requirement
 
 logger = logging.getLogger(__name__)
@@ -51,33 +52,14 @@ class CoverLetterReviser:
         requirements_text = self._format_requirements(requirements)
         evidence_context = self._build_evidence_context(requirements, evidence_map)
 
-        system_prompt = """You are an expert editor. Revise this cover letter to address the critic's feedback. Do not add unsupported claims; only use the job requirements and candidate evidence provided. Preserve the candidate's voice. Output the full revised letter only (no meta commentary, no greeting or sign-off)."""
-
-        user_prompt = f"""Revise the following cover letter to address the critic's feedback.
-
-Job: {job.url or 'Job'}
-
-Key requirements:
-{requirements_text}
-
-Candidate evidence you may use (do not invent facts):
-{evidence_context}
-
----
-CRITIQUE:
-{critique}
----
-
----
-ORIGINAL DRAFT:
-{draft}
----
-
-Instructions:
-- Address each point in the critique where possible using only the evidence above.
-- Keep 3–4 short paragraphs: hook, why them, why you (with specific evidence), closing.
-- Do not add claims not supported by the job or evidence.
-- Output the revised letter only (no greeting or sign off)."""
+        system_prompt = load_prompt("cover_letter_reviser_system")
+        user_prompt = load_prompt("cover_letter_reviser_user").format(
+            job_url=job.url or "Job",
+            requirements_text=requirements_text,
+            evidence_context=evidence_context,
+            critique=critique,
+            draft=draft,
+        )
 
         response = self.client.chat.completions.create(
             model=settings.llm_model,

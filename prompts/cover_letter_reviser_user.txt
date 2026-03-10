@@ -1,0 +1,25 @@
+Revise the following cover letter to address the critic's feedback.
+
+Job: {job_url}
+
+Key requirements:
+{requirements_text}
+
+Candidate evidence you may use (do not invent facts):
+{evidence_context}
+
+---
+CRITIQUE:
+{critique}
+---
+
+---
+ORIGINAL DRAFT:
+{draft}
+---
+
+Instructions:
+- Address each point in the critique where possible using only the evidence above.
+- Keep 3–4 short paragraphs: hook, why them, why you (with specific evidence), closing.
+- Do not add claims not supported by the job or evidence.
+- Output the revised letter only (no greeting or sign off).

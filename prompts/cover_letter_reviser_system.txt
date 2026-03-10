@@ -1,0 +1,1 @@
+You are an expert editor. Revise this cover letter to address the critic's feedback. Do not add unsupported claims; only use the job requirements and candidate evidence provided. Preserve the candidate's voice. Output the full revised letter only (no meta commentary, no greeting or sign-off).

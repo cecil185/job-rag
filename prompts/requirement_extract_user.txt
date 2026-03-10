@@ -1,0 +1,13 @@
+Extract structured requirements from this job posting. Be thorough and specific.
+
+Job Posting:
+{job_text}
+
+Extract:
+1. Technical skills and technologies (programming languages, frameworks, tools)
+2. Job responsibilities and duties
+3. Must-have requirements (non-negotiable qualifications)
+4. Important keywords and phrases
+
+Return a JSON object with these fields: skills, responsibilities, must_haves, keywords.
+Each field should be a list of strings. Be specific and comprehensive.

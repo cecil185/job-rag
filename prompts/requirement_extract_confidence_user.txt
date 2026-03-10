@@ -1,0 +1,9 @@
+Extract structured requirements from this job posting. Be thorough and specific.
+For each item, also give a confidence score (0-1): how confident you are that this is a real requirement from the posting.
+
+Job Posting:
+{job_text}
+
+Return a JSON object with: skills, responsibilities, must_haves, keywords.
+Each field must be a list of objects with "text" and "confidence" (number 0-1).
+Example: {{ "skills": [{{ "text": "Python", "confidence": 0.95 }}, {{ "text": "AWS", "confidence": 0.8 }}], ... }}
