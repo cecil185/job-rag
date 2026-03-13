@@ -23,3 +23,6 @@ htmlcov/
 # Poetry (lock file should be committed)
 TODO.txt
 .claude/worktrees/*
+
+# Dolt database files (added by bd init)
+.dolt/
