@@ -125,6 +125,30 @@ class ResumeVersion(Base):  # type: ignore[valid-type,misc]
     created_at = Column(DateTime, default=datetime.utcnow)
 
     job = relationship("Job", foreign_keys=[job_id])
+class JobBookmark(Base):  # type: ignore[valid-type,misc]
+    """Bookmarked job for kanban/status tracking (50+ job boards supported via source_board_name)."""
+    __tablename__ = "job_bookmarks"
+
+    id = Column(Integer, primary_key=True)
+    url = Column(String(2048), unique=True, nullable=False)
+    source_board_name = Column(String(128), nullable=False)  # e.g. LinkedIn, Indeed, Greenhouse
+    title = Column(String(512))
+    company = Column(String(256))
+    status = Column(String(64), nullable=False, default="saved")  # saved, applied, interviewing, offer, rejected
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "url": self.url,
+            "source_board_name": self.source_board_name,
+            "title": self.title,
+            "company": self.company,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
 
 
 class AuditLog(Base):  # type: ignore[valid-type,misc]
