@@ -22,6 +22,7 @@ services:
     environment:
       DATABASE_URL: postgresql://jobrag:jobrag_password@postgres:5432/jobrag_db
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      BEADS_DIR: /Users/cecil/Code/me/job-rag/.beads
     volumes:
       - .:/app
       - ./data:/app/data

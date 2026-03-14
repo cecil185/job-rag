@@ -9,7 +9,6 @@ bd ready              # Find available work
 bd show <id>          # View issue details
 bd update <id> --claim  # Claim work atomically
 bd close <id>         # Complete work
-bd dolt push          # Push beads data to remote
 ```
 
 ## Non-Interactive Shell Commands
@@ -59,9 +58,21 @@ bd ready --json
 **Create new issues:**
 
 ```bash
-bd create "Issue title" --description="Detailed context" -t bug|feature|task -p 0-4 --json
-bd create "Issue title" --description="What this issue is about" -p 1 --deps discovered-from:bd-123 --json
+bd create "Issue title" -d "Description" -t bug|feature|task -p 0-4 --json
+# Or: --description="Detailed context"
+# Types: bug, feature, task, epic, chore. Priority: 0 (critical) to 4 (backlog).
+# Output includes "id" (e.g. job-rag-qmz); note it for linking dependencies.
 ```
+
+**Dependencies** (blocker must exist first; add links after creating the blocked issue):
+
+```bash
+bd dep add <blocked-id> <blocker-id>   # <blocked-id> is blocked by <blocker-id>
+bd dep tree <id>                       # Show dependency tree
+bd dep cycles                          # Detect circular dependencies
+```
+
+Create parent issues first, then create children, then run `bd dep add` for each (blocked, blocker) pair.
 
 **Claim and update:**
 
@@ -133,18 +144,23 @@ For more details, see README.md and docs/QUICKSTART.md.
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd dolt push
    git push
    git status  # MUST show "up to date with origin"
+   gh pr create --base main --head "$(git branch --show-current)" --title "{title}" --body "{description}"
    ```
+   In the PR description, include a **summary of changes** that covers:
+   - What was done - maximum 3 bullets.
+   - What verification was performed, new tests written to prove functionality.
 5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
+6. **Verify** - All changes committed AND pushed AND PR created
 7. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
+- Work is NOT complete until `git push` succeeds and PR is created
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 
 <!-- END BEADS INTEGRATION -->
+Use 'bd' for task tracking
+Develop in docker containers using Makfile commands
