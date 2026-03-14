@@ -11,6 +11,8 @@ bd update <id> --claim  # Claim work atomically
 bd close <id>         # Complete work
 ```
 
+**Before ending a session:** You MUST push and create a PR. See [Landing the Plane](#landing-the-plane-session-completion) — work is NOT complete until `git push` and `gh pr create` succeed.
+
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
@@ -125,7 +127,8 @@ bd automatically syncs with git:
 - ✅ Use bd for ALL task tracking
 - ✅ Always use `--json` flag for programmatic use
 - ✅ Link discovered work with `discovered-from` dependencies
-- ✅ Check `bd ready` before asking "what should I work on?"
+- ✅ Check `bd ready` to get new work
+- ❌ Do NOT work on an issue if claiming it failed
 - ❌ Do NOT create markdown TODO lists
 - ❌ Do NOT use external issue trackers
 - ❌ Do NOT duplicate tracking systems
@@ -134,32 +137,35 @@ For more details, see README.md and docs/QUICKSTART.md.
 
 ## Landing the Plane (Session Completion)
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until **both** `git push` and **PR creation** succeed.
 
-**MANDATORY WORKFLOW:**
+**Session-end checklist (run in order):**
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
+1. **File issues for remaining work** — Create issues for anything that needs follow-up.
+2. **Run quality gates** (if code changed) — Tests, linters, builds.
+3. **Update issue status** — Close finished work, update in-progress items.
+4. **Push to remote** (required):
    ```bash
    git pull --rebase
    git push
-   git status  # MUST show "up to date with origin"
-   gh pr create --base main --head "$(git branch --show-current)" --title "{title}" --body "{description}"
+   git status   # MUST show "up to date with origin"
    ```
-   In the PR description, include a **summary of changes** that covers:
-   - What was done - maximum 3 bullets.
-   - What verification was performed, new tests written to prove functionality.
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed AND PR created
-7. **Hand off** - Provide context for next session
+5. **Create PR** (required): After push succeeds, open a PR so the work is reviewable.
+   ```bash
+   gh pr create --base main --head "$(git branch --show-current)" --title "Your PR title" --body "Summary of changes (see below)"
+   ```
+   PR body must include:
+   - **What was done** — max 3 bullets.
+   - **Verification** — tests run, new tests added (if any).
+6. **Clean up** — Clear stashes, prune remote branches.
+7. **Verify** — All changes committed, pushed, and PR created.
+8. **Hand off** — Brief context for next session.
 
 **CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds and PR is created
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+- Work is NOT complete until **both** `git push` and `gh pr create` have been run successfully.
+- NEVER stop after closing a bead without pushing and creating the PR.
+- NEVER say "ready to push when you are" — you must push and create the PR.
+- If push or PR fails, fix and retry until both succeed.
 
 <!-- END BEADS INTEGRATION -->
 Use 'bd' for task tracking
