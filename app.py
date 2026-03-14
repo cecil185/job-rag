@@ -98,7 +98,9 @@ def main():
         st.metric("Pending Edit Packs", edit_pack_count)
 
     # Main tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["📥 Process Jobs", "📊 Ranked Jobs", "✅ Review Edit Packs", "⚠️ Could not extract"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📥 Process Jobs", "📊 Ranked Jobs", "✅ Review Edit Packs", "⚠️ Could not extract", "🔍 Search Jobs"
+    ])
 
     with tab1:
         st.header("Process Job Postings")
@@ -394,6 +396,54 @@ def main():
                                 except Exception as e:
                                     msg = str(e).strip() or repr(e) or "An error occurred"
                                     st.error(f"Processing failed: {msg}")
+
+    with tab5:
+        st.header("Search Jobs (Adzuna API)")
+        from src.config import settings as app_settings
+        if not app_settings.adzuna_app_id or not app_settings.adzuna_app_key:
+            st.warning(
+                "Adzuna API not configured. Set **ADZUNA_APP_ID** and **ADZUNA_APP_KEY** in `.env` to enable job search."
+            )
+        else:
+            col_q, col_loc = st.columns(2)
+            with col_q:
+                search_query = st.text_input("Keywords (what)", placeholder="e.g. Python developer")
+            with col_loc:
+                search_location = st.text_input("Location (where)", placeholder="e.g. London")
+            if st.button("Search", type="primary", key="search_jobs_btn"):
+                with st.spinner("Searching..."):
+                    try:
+                        search_results = st.session_state.workflow.search_jobs(
+                            query=search_query.strip() or None,
+                            location=search_location.strip() or None,
+                            page=1,
+                        )
+                        st.session_state.search_results = search_results
+                        st.rerun()
+                    except Exception as e:
+                        st.error(str(e))
+            if st.session_state.get("search_results"):
+                results = st.session_state.search_results
+                st.success(f"Found {len(results)} result(s)")
+                urls_for_process = []
+                for i, r in enumerate(results):
+                    with st.expander(f"{r.get('title', 'No title')} — {r.get('company', '')}"):
+                        st.write("**Company:**", r.get("company", ""))
+                        st.write("**Location:**", r.get("location", ""))
+                        url = r.get("url", "")
+                        if url:
+                            st.write("**URL:**", url)
+                            urls_for_process.append(url)
+                        if r.get("description"):
+                            st.caption(r["description"][:300] + ("..." if len(r.get("description", "")) > 300 else ""))
+                if urls_for_process:
+                    st.subheader("Use in Process Jobs")
+                    st.text_area(
+                        "Copy these URLs into the Process Jobs tab",
+                        "\n".join(urls_for_process),
+                        height=120,
+                        key="search_urls_export",
+                    )
 
 
 if __name__ == "__main__":

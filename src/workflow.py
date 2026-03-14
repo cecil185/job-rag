@@ -379,3 +379,14 @@ class Workflow:
             })
 
         return results
+
+    def search_jobs(
+        self,
+        query: Optional[str] = None,
+        location: Optional[str] = None,
+        page: int = 1,
+    ) -> List[dict[str, Any]]:
+        """Search jobs via Adzuna API. Returns list of search-result dicts (title, company, location, url, etc.)."""
+        from src.job_search import search_jobs as api_search
+
+        return api_search(query=query, location=location, page=page)

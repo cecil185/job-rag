@@ -27,6 +27,11 @@ class Settings(BaseSettings):  # type: ignore[misc]
     top_k_evidence: int = 5
     top_k_style: int = 3
 
+    # Adzuna job search API (https://developer.adzuna.com/)
+    adzuna_app_id: Optional[str] = None
+    adzuna_app_key: Optional[str] = None
+    adzuna_country: str = "gb"
+
     class Config:
         env_file = ".env"
         case_sensitive = False
