@@ -28,7 +28,7 @@ init-db:
 	docker-compose exec app poetry run python scripts/init_db.py
 
 db-clear:
-	docker-compose exec -T postgres psql -U jobrag -d jobrag_db -c "TRUNCATE jobs, requirements, evidence_matches, edit_packs CASCADE;"
+	docker-compose exec -T postgres psql -U jobrag -d jobrag_db -c "TRUNCATE jobs, requirements, evidence_matches, edit_packs, job_bookmarks CASCADE;"
 
 test:
 	docker-compose run --rm app pytest
