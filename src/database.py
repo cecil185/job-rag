@@ -114,6 +114,19 @@ class EditPack(Base):  # type: ignore[valid-type,misc]
     job = relationship("Job", back_populates="edit_packs")
 
 
+class ResumeVersion(Base):  # type: ignore[valid-type,misc]
+    """Resume version storage."""
+    __tablename__ = "resume_versions"
+
+    id = Column(Integer, primary_key=True)
+    job_id = Column(Integer, ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True)  # Optional link to job
+    label = Column(String, nullable=True)  # Optional label (e.g. "Senior Engineer v1", "Backend focused")
+    content = Column(Text, nullable=False)  # Full resume content
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    job = relationship("Job", foreign_keys=[job_id])
+
+
 class AuditLog(Base):  # type: ignore[valid-type,misc]
     """Audit log for extraction runs, edit pack approval/rejection."""
     __tablename__ = "audit_log"
@@ -214,3 +227,64 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+# Resume version helper functions
+def save_resume_version(
+    db: Session,
+    content: str,
+    job_id: int | None = None,
+    label: str | None = None,
+) -> ResumeVersion:
+    """
+    Save a resume version.
+
+    Args:
+        db: Database session
+        content: Full resume content
+        job_id: Optional job ID to link this version to
+        label: Optional label for this version
+
+    Returns:
+        Created ResumeVersion instance
+    """
+    version = ResumeVersion(
+        content=content,
+        job_id=job_id,
+        label=label,
+    )
+    db.add(version)
+    db.commit()
+    db.refresh(version)
+    return version
+
+
+def list_resume_versions(db: Session, job_id: int | None = None) -> list[ResumeVersion]:
+    """
+    List resume versions, optionally filtered by job_id.
+
+    Args:
+        db: Database session
+        job_id: Optional job ID to filter by
+
+    Returns:
+        List of ResumeVersion instances, ordered by created_at descending
+    """
+    query = db.query(ResumeVersion)
+    if job_id is not None:
+        query = query.filter(ResumeVersion.job_id == job_id)
+    return query.order_by(ResumeVersion.created_at.desc()).all()
+
+
+def load_resume_version(db: Session, version_id: int) -> ResumeVersion | None:
+    """
+    Load a resume version by ID.
+
+    Args:
+        db: Database session
+        version_id: Version ID to load
+
+    Returns:
+        ResumeVersion instance or None if not found
+    """
+    return db.query(ResumeVersion).filter(ResumeVersion.id == version_id).first()
