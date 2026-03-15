@@ -11,10 +11,12 @@ from sqlalchemy.orm import joinedload
 
 from src.database import EditPack
 from src.database import get_db
-from src.database import init_db
 from src.database import Job
 from src.evidence_rag import EvidenceRAG
 from src.workflow import Workflow
+
+# Kanban pipeline stages (order matters for move left/right)
+KANBAN_STAGES = ["could_not_extract", "parsed", "applied", "interviewing", "offer", "rejected"]
 
 # Configure logging so INFO shows where time is spent
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -98,7 +100,9 @@ def main():
         st.metric("Pending Edit Packs", edit_pack_count)
 
     # Main tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["📥 Process Jobs", "📊 Ranked Jobs", "✅ Review Edit Packs", "⚠️ Could not extract"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📥 Process Jobs", "📊 Ranked Jobs", "✅ Review Edit Packs", "⚠️ Could not extract", "📋 Job Tracker"
+    ])
 
     with tab1:
         st.header("Process Job Postings")
@@ -394,6 +398,90 @@ def main():
                                 except Exception as e:
                                     msg = str(e).strip() or repr(e) or "An error occurred"
                                     st.error(f"Processing failed: {msg}")
+
+    with tab5:
+        st.header("Job Tracker (Kanban)")
+        st.markdown("Track jobs by pipeline stage. Jobs are added here when you process URLs; you can also add a URL below.")
+
+        db = st.session_state.db
+
+        # Add job form (creates a Job row so it appears in tracker)
+        with st.expander("➕ Add job to tracker", expanded=False):
+            add_url = st.text_input("Job URL", placeholder="https://...", key="kanban_add_url")
+            add_title = st.text_input("Title (optional)", placeholder="Job title", key="kanban_add_title")
+            add_company = st.text_input("Company (optional)", placeholder="Company name", key="kanban_add_company")
+            if st.button("Add to Parsed", key="kanban_add_btn"):
+                if add_url and add_url.strip():
+                    existing = db.query(Job).filter(Job.url == add_url.strip()).first()
+                    if existing:
+                        st.warning("This URL is already in your tracker.")
+                    else:
+                        try:
+                            job = Job(
+                                url=add_url.strip(),
+                                raw_text=None,
+                                meta_data={
+                                    k: v for k, v in [
+                                        ("title", add_title.strip() or None),
+                                        ("company", add_company.strip() or None),
+                                    ] if v
+                                },
+                                status="parsed",
+                            )
+                            db.add(job)
+                            db.commit()
+                            st.success("Job added to Parsed.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(str(e))
+                else:
+                    st.error("Please enter a job URL.")
+
+        # Load all jobs and group by status (treat legacy "saved" as "parsed")
+        all_jobs = db.query(Job).order_by(Job.created_at.desc()).all()
+        by_status: dict[str, list] = {s: [] for s in KANBAN_STAGES}
+        for j in all_jobs:
+            status = "parsed" if (not j.status or j.status == "saved") else j.status
+            if status in by_status:
+                by_status[status].append(j)
+
+        cols = st.columns(len(KANBAN_STAGES))
+        for idx, stage in enumerate(KANBAN_STAGES):
+            with cols[idx]:
+                stage_label = stage.replace("_", " ").title()
+                st.subheader(f"{stage_label}")
+                for j in by_status[stage]:
+                    title = (j.meta_data or {}).get("title") if j.meta_data else None
+                    company = (j.meta_data or {}).get("company") if j.meta_data else None
+                    with st.container():
+                        st.markdown(f"**{title or 'No title'}**")
+                        if company:
+                            st.caption(company)
+                        st.caption(f"[Open]({j.url})")
+                        btn_cols = st.columns(3)
+                        with btn_cols[0]:
+                            if idx > 0:
+                                new_status = KANBAN_STAGES[idx - 1]
+                                if st.button("◀", key=f"left_{j.id}", help=f"Move to {new_status}"):
+                                    j.status = new_status
+                                    db.commit()
+                                    st.rerun()
+                        with btn_cols[1]:
+                            if idx < len(KANBAN_STAGES) - 1:
+                                new_status = KANBAN_STAGES[idx + 1]
+                                if st.button("▶", key=f"right_{j.id}", help=f"Move to {new_status}"):
+                                    j.status = new_status
+                                    db.commit()
+                                    st.rerun()
+                        with btn_cols[2]:
+                            if st.button("🗑", key=f"del_{j.id}", help="Remove from tracker"):
+                                db.delete(j)
+                                db.commit()
+                                st.rerun()
+                        st.divider()
+
+        if not all_jobs:
+            st.info("No jobs in your tracker yet. Process URLs in the Process Jobs tab or add one above.")
 
 
 if __name__ == "__main__":

@@ -35,6 +35,8 @@ class Job(Base):  # type: ignore[valid-type,misc]
     raw_text = Column(Text)
     meta_data = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy conflict
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Tracker stage: could_not_extract, parsed, applied, interviewing, offer, rejected
+    status = Column(String(64), nullable=False, default="parsed")
 
     requirements = relationship("Requirement", back_populates="job")
     edit_packs = relationship("EditPack", back_populates="job")
@@ -134,7 +136,7 @@ class JobBookmark(Base):  # type: ignore[valid-type,misc]
     source_board_name = Column(String(128), nullable=False)  # e.g. LinkedIn, Indeed, Greenhouse
     title = Column(String(512))
     company = Column(String(256))
-    status = Column(String(64), nullable=False, default="saved")  # saved, applied, interviewing, offer, rejected
+    status = Column(String(64), nullable=False, default="parsed")  # could_not_extract, parsed, applied, interviewing, offer, rejected
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -177,10 +179,14 @@ def init_db() -> None:
     # Create tables (including audit_log and new columns for new installs)
     Base.metadata.create_all(bind=engine)
 
-    # Migrations for existing DBs: add Requirement confidence/validation columns if missing
+    # Migrations for existing DBs: add jobs.status, Requirement columns if missing
     with engine.connect() as conn:
         try:
             conn.execute(text("ALTER TABLE jobs DROP COLUMN IF EXISTS title"))
+            conn.execute(text(
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS status VARCHAR(64) DEFAULT 'parsed'"
+            ))
+            conn.execute(text("UPDATE jobs SET status = 'parsed' WHERE status IS NULL"))
             for col, sql_type in [
                 ("confidence", "FLOAT"),
                 ("validated", "BOOLEAN"),

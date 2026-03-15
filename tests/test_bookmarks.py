@@ -33,14 +33,14 @@ def test_create_and_get_by_id(db_session) -> None:
         "LinkedIn",
         title="Senior Engineer",
         company="Acme Inc",
-        status="saved",
+        status="parsed",
     )
     assert b.id is not None
     assert b.url == "https://example.com/job/1"
     assert b.source_board_name == "LinkedIn"
     assert b.title == "Senior Engineer"
     assert b.company == "Acme Inc"
-    assert b.status == "saved"
+    assert b.status == "parsed"
     assert b.created_at is not None
 
     got = bookmarks.get_by_id(db_session, b.id)
@@ -57,19 +57,19 @@ def test_get_by_url(db_session) -> None:
 
 
 def test_get_all_and_filter_by_status(db_session) -> None:
-    bookmarks.create(db_session, "https://a.com/1", "Indeed", status="saved")
+    bookmarks.create(db_session, "https://a.com/1", "Indeed", status="parsed")
     bookmarks.create(db_session, "https://a.com/2", "Indeed", status="applied")
-    bookmarks.create(db_session, "https://a.com/3", "LinkedIn", status="saved")
+    bookmarks.create(db_session, "https://a.com/3", "LinkedIn", status="parsed")
     all_b = bookmarks.get_all(db_session)
     assert len(all_b) >= 3
-    saved = bookmarks.get_all(db_session, status="saved")
-    assert len(saved) >= 2
+    parsed = bookmarks.get_all(db_session, status="parsed")
+    assert len(parsed) >= 2
     applied = bookmarks.get_all(db_session, status="applied")
     assert len(applied) >= 1
 
 
 def test_update(db_session) -> None:
-    b = bookmarks.create(db_session, "https://b.com/1", "Indeed", title="Old", status="saved")
+    b = bookmarks.create(db_session, "https://b.com/1", "Indeed", title="Old", status="parsed")
     updated = bookmarks.update(db_session, b.id, title="New Title", status="applied")
     assert updated is not None
     assert updated.title == "New Title"
@@ -87,12 +87,12 @@ def test_delete(db_session) -> None:
 
 
 def test_to_dict(db_session) -> None:
-    b = bookmarks.create(db_session, "https://d.com/1", "Indeed", title="T", company="C", status="saved")
+    b = bookmarks.create(db_session, "https://d.com/1", "Indeed", title="T", company="C", status="parsed")
     d = b.to_dict()
     assert d["url"] == "https://d.com/1"
     assert d["source_board_name"] == "Indeed"
     assert d["title"] == "T"
     assert d["company"] == "C"
-    assert d["status"] == "saved"
+    assert d["status"] == "parsed"
     assert "created_at" in d
     assert "updated_at" in d

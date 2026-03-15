@@ -2,10 +2,55 @@
 from __future__ import annotations
 
 from typing import Optional
+from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
 from src.database import JobBookmark
+
+# Known hostnames -> display name for job tracker
+SOURCE_FROM_HOST: dict[str, str] = {
+    "linkedin.com": "LinkedIn",
+    "www.linkedin.com": "LinkedIn",
+    "boards.greenhouse.io": "Greenhouse",
+    "jobs.lever.co": "Lever",
+    "www.indeed.com": "Indeed",
+    "indeed.com": "Indeed",
+}
+
+
+def source_from_url(url: str) -> str:
+    """Derive a short source board name from a job URL."""
+    try:
+        host = (urlparse(url).netloc or "").lower().lstrip("www.")
+        if host in SOURCE_FROM_HOST:
+            return SOURCE_FROM_HOST[host]
+        # e.g. "boards.greenhouse.io" -> keep as-is or shorten
+        for h, name in SOURCE_FROM_HOST.items():
+            if host.endswith("." + h) or host == h:
+                return name
+        return host or "Job RAG"
+    except Exception:
+        return "Job RAG"
+
+
+def ensure_bookmark(
+    db: Session,
+    url: str,
+    source_board_name: str,
+    status: str,
+    *,
+    title: Optional[str] = None,
+    company: Optional[str] = None,
+) -> JobBookmark:
+    """Create a bookmark or update its status if it already exists. Returns the bookmark."""
+    existing = get_by_url(db, url)
+    if existing:
+        update(db, existing.id, status=status, title=title, company=company)
+        b = get_by_id(db, existing.id)
+        assert b is not None
+        return b
+    return create(db, url, source_board_name, title=title, company=company, status=status)
 
 
 def create(
@@ -15,7 +60,7 @@ def create(
     *,
     title: Optional[str] = None,
     company: Optional[str] = None,
-    status: str = "saved",
+    status: str = "parsed",
 ) -> JobBookmark:
     """Create a job bookmark. Raises if url already exists."""
     b = JobBookmark(
