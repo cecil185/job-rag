@@ -150,8 +150,10 @@ def _count_tokens(text: str, encoding: tiktoken.Encoding) -> int:
 class RequirementExtractor:
     """Extracts structured requirements from job postings."""
 
-    def __init__(self) -> None:
-        self.client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
+    def __init__(self, client: Optional[OpenAI] = None) -> None:
+        self.client = client or (
+            OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
+        )
         self._encoding = tiktoken.get_encoding("cl100k_base")
 
     def extract(self, job_text: str) -> Requirements:
