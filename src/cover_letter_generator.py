@@ -3,6 +3,7 @@ import logging
 import time
 from typing import Any
 from typing import List
+from typing import Optional
 
 from openai import OpenAI
 
@@ -21,10 +22,17 @@ logger = logging.getLogger(__name__)
 class CoverLetterGenerator:
     """Generates cover letters tailored to a job with evidence-backed content."""
 
-    def __init__(self, evidence_rag: EvidenceRAG, style_rag: StyleRAG):
+    def __init__(
+        self,
+        evidence_rag: EvidenceRAG,
+        style_rag: StyleRAG,
+        client: Optional[OpenAI] = None,
+    ):
         self.evidence_rag = evidence_rag
         self.style_rag = style_rag
-        self.client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
+        self.client = client or (
+            OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
+        )
 
     def generate(
         self,
