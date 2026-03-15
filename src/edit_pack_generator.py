@@ -9,9 +9,10 @@ from openai import OpenAI
 
 from src.config import settings
 from src.database import Job
-from src.prompt_loader import load_prompt
 from src.database import Requirement
+from src.prompt_loader import load_prompt
 from src.evidence_rag import EvidenceRAG
+from src.prompt_helpers import format_requirements
 from src.style_rag import StyleRAG
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ class EditPackGenerator:
         # Get style examples
         job_context = job.url or "Job"
         logger.info("EditPackGenerator.generate: retrieving style examples")
-        style_examples = self.style_rag.retrieve_style_examples(job_context, top_k=3)
+        style_examples = self.style_rag.retrieve_style_examples(job_context, top_k=settings.top_k_style)
 
         # Build evidence context
         evidence_context = self._build_evidence_context(requirements, evidence_map)
@@ -70,7 +71,7 @@ Gap phrases (requirements with NO or weak evidence — do NOT invent bullets for
 """
         prompt = load_prompt("edit_pack_user").format(
             job_url=job.url or "Job",
-            requirements_formatted=self._format_requirements(requirements),
+            requirements_formatted=format_requirements(requirements, include_priority=True),
             evidence_context=evidence_context,
             gap_block=gap_block,
             style_context=style_context,
@@ -87,13 +88,6 @@ Gap phrases (requirements with NO or weak evidence — do NOT invent bullets for
         )
         logger.info("EditPackGenerator.generate: done in %.2fs", time.perf_counter() - t0)
         return response.choices[0].message.content or ""
-
-    def _format_requirements(self, requirements: List[Requirement]) -> str:
-        """Format requirements for prompt."""
-        lines = []
-        for req in requirements:
-            lines.append(f"- [{req.category}] {req.text} (Priority: {req.priority})")
-        return "\n".join(lines)
 
     def _build_evidence_context(
         self,

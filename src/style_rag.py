@@ -9,6 +9,7 @@ from typing import List
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from src.config import settings
 from src.database import StyleExample
 from src.embeddings import EmbeddingGenerator
 
@@ -106,7 +107,7 @@ class StyleRAG:
         Returns:
             List of dicts with 'content', 'similarity_score', 'metadata'
         """
-        top_k = top_k or 3
+        top_k = top_k or settings.top_k_style
         t0 = time.perf_counter()
         # Generate query embedding
         query_embedding = self.embedding_gen.generate(query_text)

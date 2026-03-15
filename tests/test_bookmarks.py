@@ -2,10 +2,10 @@
 import pytest
 from sqlalchemy import text
 
+import src.bookmarks as bookmarks
+from src.database import engine
 from src.database import get_db
 from src.database import init_db
-from src.database import engine
-from src import bookmarks
 
 
 @pytest.fixture

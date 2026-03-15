@@ -30,8 +30,9 @@ init-db:
 db-clear:
 	docker-compose exec -T postgres psql -U jobrag -d jobrag_db -c "TRUNCATE jobs, requirements, evidence_matches, edit_packs, job_bookmarks CASCADE;"
 
+# Tests use pytest stack (Postgres on port 5433)
 test:
-	docker-compose run --rm app pytest
+	docker-compose -f docker-compose.pytest.yml run --rm pytest
 
 requirement-extraction-eval:
 	docker-compose run --rm app python scripts/run_evals.py

@@ -1,0 +1,32 @@
+# Pytest stack: separate Postgres on host port 5433 to avoid conflict with main dev (5432)
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: jobrag
+      POSTGRES_PASSWORD: jobrag_password
+      POSTGRES_DB: jobrag_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data_pytest:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobrag -d jobrag_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pytest:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://jobrag:jobrag_password@postgres:5432/jobrag_db
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: pytest tests/
+
+volumes:
+  postgres_data_pytest:

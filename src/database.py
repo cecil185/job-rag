@@ -1,6 +1,7 @@
 """Database setup and models."""
 import logging
 from datetime import datetime
+from datetime import timezone
 from typing import Any
 from typing import Generator
 
@@ -26,6 +27,11 @@ logger = logging.getLogger(__name__)
 Base = declarative_base()
 
 
+def _utc_now() -> datetime:
+    """Current UTC time (avoids deprecated datetime.utcnow())."""
+    return datetime.now(timezone.utc)
+
+
 class Job(Base):  # type: ignore[valid-type,misc]
     """Job posting model."""
     __tablename__ = "jobs"
@@ -34,7 +40,7 @@ class Job(Base):  # type: ignore[valid-type,misc]
     url = Column(String, unique=True, nullable=False)
     raw_text = Column(Text)
     meta_data = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy conflict
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
     # Tracker stage: could_not_extract, parsed, applied, interviewing, offer, rejected
     status = Column(String(64), nullable=False, default="parsed")
 
@@ -54,7 +60,7 @@ class Requirement(Base):  # type: ignore[valid-type,misc]
     confidence = Column(Float, nullable=True)  # [0, 1] from extractor
     validated = Column(Boolean, nullable=True)  # True if found in raw_text
     raw_snippet = Column(Text, nullable=True)  # excerpt from raw_text that supports this requirement
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     job = relationship("Job", back_populates="requirements")
     evidence_matches = relationship("EvidenceMatch", back_populates="requirement")
@@ -68,7 +74,7 @@ class EvidenceMatch(Base):  # type: ignore[valid-type,misc]
     requirement_id = Column(Integer, ForeignKey("requirements.id"), nullable=False)
     evidence_id = Column(Integer, ForeignKey("evidence_chunks.id"), nullable=False)
     similarity_score = Column(Float)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     requirement = relationship("Requirement", back_populates="evidence_matches")
     evidence_chunk = relationship("EvidenceChunk", back_populates="matches")
@@ -84,7 +90,7 @@ class EvidenceChunk(Base):  # type: ignore[valid-type,misc]
     embedding = Column(Text)  # JSON array of floats
     meta_data = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy conflict
     is_resume = Column(Boolean, default=False)  # True = on base resume (replace on re-upload)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     matches = relationship("EvidenceMatch", back_populates="evidence_chunk")
 
@@ -97,7 +103,7 @@ class StyleExample(Base):  # type: ignore[valid-type,misc]
     content = Column(Text, nullable=False)
     embedding = Column(Text)  # JSON array of floats
     meta_data = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy conflict
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
 
 class EditPack(Base):  # type: ignore[valid-type,misc]
@@ -110,7 +116,7 @@ class EditPack(Base):  # type: ignore[valid-type,misc]
     fit_score = Column(Float)
     gap_list = Column(JSON)
     approved = Column(Integer, default=0)  # 0=pending, 1=approved, -1=rejected
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
     approved_at = Column(DateTime)
 
     job = relationship("Job", back_populates="edit_packs")
@@ -124,9 +130,11 @@ class ResumeVersion(Base):  # type: ignore[valid-type,misc]
     job_id = Column(Integer, ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True)  # Optional link to job
     label = Column(String, nullable=True)  # Optional label (e.g. "Senior Engineer v1", "Backend focused")
     content = Column(Text, nullable=False)  # Full resume content
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     job = relationship("Job", foreign_keys=[job_id])
+
+
 class JobBookmark(Base):  # type: ignore[valid-type,misc]
     """Bookmarked job for kanban/status tracking (50+ job boards supported via source_board_name)."""
     __tablename__ = "job_bookmarks"
@@ -137,8 +145,8 @@ class JobBookmark(Base):  # type: ignore[valid-type,misc]
     title = Column(String(512))
     company = Column(String(256))
     status = Column(String(64), nullable=False, default="parsed")  # could_not_extract, parsed, applied, interviewing, offer, rejected
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
+    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -162,7 +170,7 @@ class AuditLog(Base):  # type: ignore[valid-type,misc]
     entity_id = Column(Integer, nullable=False)
     action = Column(String, nullable=False)  # e.g. "extraction_run", "edit_pack_approved", "edit_pack_rejected"
     actor = Column(String, default="system")
-    at = Column(DateTime, default=datetime.utcnow)
+    at = Column(DateTime, default=_utc_now)
     payload = Column(JSON, nullable=True)  # optional details
 
 

@@ -2,6 +2,7 @@
 import logging
 import time
 from datetime import datetime
+from datetime import timezone
 from typing import Any
 from typing import List
 from typing import Optional
@@ -27,6 +28,12 @@ from src.style_rag import StyleRAG
 
 logger = logging.getLogger(__name__)
 
+# Status and approval constants (avoid magic strings/numbers)
+STATUS_COULD_NOT_EXTRACT = "could_not_extract"
+EDIT_PACK_APPROVED = 1
+EDIT_PACK_REJECTED = -1
+EDIT_PACK_PENDING = 0
+
 
 class Workflow:
     """Main workflow orchestrator."""
@@ -42,15 +49,20 @@ class Workflow:
         self.cover_letter_reviser = CoverLetterReviser()
         self.application_answer_generator = ApplicationAnswerGenerator(self.evidence_rag, self.style_rag)
 
+    def _get_job_or_raise(self, job_id: int) -> Job:
+        """Load job by id or raise ValueError if not found."""
+        job = self.db.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            raise ValueError(f"Job {job_id} not found")
+        return job
+
     def generate_cover_letter_with_revision(self, job_id: int) -> dict[str, Any]:
         """
         Generate draft, run critic, then reviser; return draft, critique, and revised letter.
         """
         t0 = time.perf_counter()
         logger.info("generate_cover_letter_with_revision: job_id=%s start", job_id)
-        job = self.db.query(Job).filter(Job.id == job_id).first()
-        if not job:
-            raise ValueError(f"Job {job_id} not found")
+        job = self._get_job_or_raise(job_id)
         requirements = self.db.query(Requirement).filter(Requirement.job_id == job_id).all()
         evidence_map = self.evidence_rag.match_requirements(requirements)
         draft = self.cover_letter_generator.generate(job, requirements, evidence_map)
@@ -67,9 +79,7 @@ class Workflow:
         """Add edited cover letter to Style RAG as a style example."""
         t0 = time.perf_counter()
         logger.info("approve_cover_letter: job_id=%s start", job_id)
-        job = self.db.query(Job).filter(Job.id == job_id).first()
-        if not job:
-            raise ValueError(f"Job {job_id} not found")
+        job = self._get_job_or_raise(job_id)
         metadata = {
             "type": "cover_letter",
             "job_url": job.url,
@@ -81,9 +91,7 @@ class Workflow:
         """Generate an answer to a job application question (on demand)."""
         t0 = time.perf_counter()
         logger.info("generate_application_answer: job_id=%s start", job_id)
-        job = self.db.query(Job).filter(Job.id == job_id).first()
-        if not job:
-            raise ValueError(f"Job {job_id} not found")
+        job = self._get_job_or_raise(job_id)
         requirements = self.db.query(Requirement).filter(Requirement.job_id == job_id).all()
         evidence_map = self.evidence_rag.match_requirements(requirements)
         answer = self.application_answer_generator.generate(job, requirements, evidence_map, question)
@@ -94,9 +102,7 @@ class Workflow:
         """Add edited application answer to Style RAG as a style example."""
         t0 = time.perf_counter()
         logger.info("approve_application_answer: job_id=%s start", job_id)
-        job = self.db.query(Job).filter(Job.id == job_id).first()
-        if not job:
-            raise ValueError(f"Job {job_id} not found")
+        job = self._get_job_or_raise(job_id)
         metadata = {
             "type": "application_answer",
             "job_url": job.url,
@@ -110,6 +116,7 @@ class Workflow:
         urls: List[str],
         role_tags: Optional[List[str]] = None,
         raw_text_override: Optional[str] = None,
+        reprocess: bool = False,
     ) -> List[dict[str, Any]]:
         """
         Process job posting links.
@@ -118,6 +125,7 @@ class Workflow:
             urls: List of job posting URLs
             role_tags: Optional role tags for categorization
             raw_text_override: If provided, used for the first URL and that URL is not fetched.
+            reprocess: If True, overwrite existing job and reprocess when URL already exists.
 
         Returns:
             List of job processing results
@@ -131,20 +139,20 @@ class Workflow:
             for i, url in enumerate(urls):
                 try:
                     raw_for_this = (raw_override if i == 0 else None)
-                    result = self._process_single_job(url, fetcher, role_tags, raw_text=raw_for_this)
+                    result = self._process_single_job(url, fetcher, role_tags, raw_text=raw_for_this, reprocess=reprocess)
                     results.append(result)
                 except Exception as e:
                     self.db.rollback()
                     try:
                         existing = self.db.query(Job).filter(Job.url == url).first()
                         if existing:
-                            existing.status = "could_not_extract"
+                            existing.status = STATUS_COULD_NOT_EXTRACT
                         else:
                             stub = Job(
                                 url=url,
                                 raw_text=None,
                                 meta_data={},
-                                status="could_not_extract",
+                                status=STATUS_COULD_NOT_EXTRACT,
                             )
                             self.db.add(stub)
                         self.db.commit()
@@ -165,6 +173,7 @@ class Workflow:
         fetcher: JobFetcher,
         role_tags: Optional[List[str]] = None,
         raw_text: Optional[str] = None,
+        reprocess: bool = False,
     ) -> dict[str, Any]:
         """Process a single job posting. If raw_text is provided, skip fetching the URL and use it."""
         t0 = time.perf_counter()
@@ -173,9 +182,9 @@ class Workflow:
         # Step 1: Check if job already exists
         existing_job = self.db.query(Job).filter(Job.url == url).first()
         if existing_job:
-            if raw_text is not None:
-                # User is retrying with pasted text: delete existing job and reprocess with pasted content
-                logger.info("_process_single_job: url=%s exists but raw_text provided, replacing and reprocessing", url[:60])
+            if reprocess or raw_text is not None:
+                # User requested reprocess or pasted text: delete existing job and reprocess
+                logger.info("_process_single_job: url=%s exists, replacing and reprocessing (reprocess=%s, raw_text=%s)", url[:60], reprocess, bool(raw_text))
                 for req in existing_job.requirements:
                     self.db.query(EvidenceMatch).filter(EvidenceMatch.requirement_id == req.id).delete()
                 self.db.delete(existing_job)
@@ -284,7 +293,7 @@ class Workflow:
             content=edit_pack_content,
             fit_score=fit_score,
             gap_list=gaps,
-            approved=0
+            approved=EDIT_PACK_PENDING,
         )
         self.db.add(edit_pack)
         self.db.commit()
@@ -329,8 +338,8 @@ class Workflow:
         self.style_rag.add_style_example_chunked(content_to_store, metadata)
 
         # Mark as approved and set approved_at
-        edit_pack.approved = 1
-        edit_pack.approved_at = datetime.utcnow()
+        edit_pack.approved = EDIT_PACK_APPROVED
+        edit_pack.approved_at = datetime.now(timezone.utc)
         if modified_content:
             edit_pack.content = modified_content
         self.db.commit()
@@ -352,7 +361,7 @@ class Workflow:
         edit_pack = self.db.query(EditPack).filter(EditPack.id == edit_pack_id).first()
         if not edit_pack:
             raise ValueError(f"Edit pack {edit_pack_id} not found")
-        edit_pack.approved = -1
+        edit_pack.approved = EDIT_PACK_REJECTED
         self.db.commit()
         write_audit_event(
             self.db,

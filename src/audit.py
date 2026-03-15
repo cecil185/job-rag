@@ -1,5 +1,6 @@
 """Audit log helpers for extraction runs and edit pack approval/rejection."""
 from datetime import datetime
+from datetime import timezone
 from typing import Any
 from typing import Optional
 
@@ -23,7 +24,7 @@ def write_audit_event(
         entity_id=entity_id,
         action=action,
         actor=actor,
-        at=at or datetime.utcnow(),
+        at=at or datetime.now(timezone.utc),
         payload=payload,
     )
     db.add(entry)

@@ -3,13 +3,16 @@ import logging
 import time
 from typing import Any
 from typing import List
+from typing import Optional
 
 from openai import OpenAI
 
 from src.config import settings
 from src.database import Job
-from src.prompt_loader import load_prompt
 from src.database import Requirement
+from src.prompt_helpers import build_evidence_context_brief
+from src.prompt_helpers import format_requirements
+from src.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +20,7 @@ logger = logging.getLogger(__name__)
 class CoverLetterCritic:
     """Reviews a draft cover letter and returns a structured critique."""
 
-    def __init__(self, client: OpenAI = None):
+    def __init__(self, client: Optional[OpenAI] = None):
         self.client = client or (
             OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
         )
@@ -47,8 +50,8 @@ class CoverLetterCritic:
         t0 = time.perf_counter()
         logger.info("CoverLetterCritic.critique: start")
 
-        requirements_text = self._format_requirements(requirements)
-        evidence_context = self._build_evidence_context(requirements, evidence_map)
+        requirements_text = format_requirements(requirements)
+        evidence_context = build_evidence_context_brief(requirements, evidence_map)
 
         system_prompt = load_prompt("cover_letter_critic_system")
         user_prompt = load_prompt("cover_letter_critic_user").format(
@@ -69,26 +72,3 @@ class CoverLetterCritic:
         critique = response.choices[0].message.content or ""
         logger.info("CoverLetterCritic.critique: done in %.2fs", time.perf_counter() - t0)
         return critique
-
-    def _format_requirements(self, requirements: List[Requirement]) -> str:
-        lines = []
-        for req in requirements:
-            lines.append(f"- [{req.category}] {req.text}")
-        return "\n".join(lines)
-
-    def _build_evidence_context(
-        self,
-        requirements: List[Requirement],
-        evidence_map: dict[int, List[dict[str, Any]]],
-    ) -> str:
-        parts = []
-        for req in requirements:
-            evidence = evidence_map.get(req.id, [])
-            if evidence:
-                parts.append(f"\nRe: {req.text}")
-                for i, ev in enumerate(evidence, 1):
-                    content = ev.get("content", "")[:250]
-                    if len(ev.get("content", "")) > 250:
-                        content += "..."
-                    parts.append(f"  #{i}: {content}")
-        return "\n".join(parts) if parts else "No evidence matches yet."

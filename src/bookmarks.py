@@ -30,7 +30,7 @@ def source_from_url(url: str) -> str:
             if host.endswith("." + h) or host == h:
                 return name
         return host or "Job RAG"
-    except Exception:
+    except Exception:  # urlparse or netloc access can raise; fallback to generic label
         return "Job RAG"
 
 

@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.chunker import Chunker
+from src.config import settings
 from src.database import EvidenceChunk
 from src.database import EvidenceMatch
 from src.database import Requirement
@@ -147,7 +148,7 @@ class EvidenceRAG:
         Returns:
             Dict mapping requirement_id -> list of evidence matches
         """
-        top_k = top_k or 5
+        top_k = top_k or settings.top_k_evidence
         t0 = time.perf_counter()
         logger.info("match_requirements: %d requirements top_k=%d start", len(requirements), top_k)
         evidence_map = {}

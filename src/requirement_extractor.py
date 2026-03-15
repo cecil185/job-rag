@@ -180,7 +180,7 @@ class RequirementExtractor:
             {"role": "user", "content": prompt},
         ]
         total_tokens = sum(_count_tokens(m["content"], self._encoding) for m in messages)
-        logging.info(f"total_tokens: {total_tokens}")
+        logger.info("total_tokens: %d", total_tokens)
         if total_tokens > MAX_PROMPT_TOKENS:
             raise ValueError(
                 f"Prompt exceeds max token limit: {total_tokens} > {MAX_PROMPT_TOKENS}. "
@@ -202,7 +202,7 @@ class RequirementExtractor:
             return Requirements(**result_dict)
         except Exception as e:
             # Fallback: try to parse manually
-            print(f"Warning: Failed to parse JSON response: {e}")
+            logger.warning("Failed to parse JSON response: %s", e)
             return self._fallback_extract(job_text)
 
     def extract_with_confidence_and_validation(self, job_text: str) -> List[RequirementItem]:

@@ -8,9 +8,11 @@ from openai import OpenAI
 
 from src.config import settings
 from src.database import Job
-from src.prompt_loader import load_prompt
 from src.database import Requirement
 from src.evidence_rag import EvidenceRAG
+from src.prompt_helpers import build_evidence_context_brief
+from src.prompt_helpers import format_requirements
+from src.prompt_loader import load_prompt
 from src.style_rag import StyleRAG
 
 logger = logging.getLogger(__name__)
@@ -47,14 +49,14 @@ class CoverLetterGenerator:
         t0 = time.perf_counter()
         job_context = job.url or "Job"
         logger.info("CoverLetterGenerator.generate: retrieving style examples")
-        style_examples = self.style_rag.retrieve_style_examples(job_context, top_k=3)
-        evidence_context = self._build_evidence_context(requirements, evidence_map)
+        style_examples = self.style_rag.retrieve_style_examples(job_context, top_k=settings.top_k_style)
+        evidence_context = build_evidence_context_brief(requirements, evidence_map)
         style_context = "\n\n".join([ex["content"] for ex in style_examples]) if style_examples else ""
 
         style_display = style_context or "(No style examples yet; use professional, concise tone.)"
         prompt = load_prompt("cover_letter_user").format(
             job_url=job.url or "Job",
-            requirements_formatted=self._format_requirements(requirements),
+            requirements_formatted=format_requirements(requirements),
             evidence_context=evidence_context,
             style_context=style_display,
         )
@@ -70,23 +72,3 @@ class CoverLetterGenerator:
         )
         logger.info("CoverLetterGenerator.generate: done in %.2fs", time.perf_counter() - t0)
         return response.choices[0].message.content or ""
-
-    def _format_requirements(self, requirements: List[Requirement]) -> str:
-        lines = []
-        for req in requirements:
-            lines.append(f"- [{req.category}] {req.text}")
-        return "\n".join(lines)
-
-    def _build_evidence_context(
-        self,
-        requirements: List[Requirement],
-        evidence_map: dict[int, List[dict[str, Any]]],
-    ) -> str:
-        context_parts = []
-        for req in requirements:
-            evidence = evidence_map.get(req.id, [])
-            if evidence:
-                context_parts.append(f"\nRe: {req.text}")
-                for i, ev in enumerate(evidence, 1):
-                    context_parts.append(f"  #{i}: {ev['content'][:250]}{'...' if len(ev.get('content','')) > 250 else ''}")
-        return "\n".join(context_parts) if context_parts else "No evidence matches yet."

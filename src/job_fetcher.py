@@ -100,7 +100,7 @@ class JobFetcher:
                     "metadata": {"source": "pdf", "url": url}
                 }
         except Exception as e:
-            raise Exception(f"Failed to fetch PDF: {e}")
+            raise RuntimeError(f"Failed to fetch PDF: {e}") from e
 
     def _fetch_web(self, url: str) -> dict[str, Any]:
         """Extract text from web page."""
@@ -151,4 +151,4 @@ class JobFetcher:
                 "metadata": {"source": "web", "url": url}
             }
         except Exception as e:
-            raise Exception(f"Failed to fetch web page: {e}")
+            raise RuntimeError(f"Failed to fetch web page: {e}") from e

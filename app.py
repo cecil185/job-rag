@@ -1,18 +1,18 @@
 """Streamlit UI for Job RAG."""
 import io
 import logging
-import sys
 
 import streamlit as st
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import joinedload
 
 from scripts.pdf_to_txt import pdf_to_text
-from sqlalchemy.orm import joinedload
 
 from src.database import EditPack
 from src.database import get_db
 from src.database import Job
 from src.evidence_rag import EvidenceRAG
+from src.workflow import EDIT_PACK_PENDING
 from src.workflow import Workflow
 
 # Kanban pipeline stages (order matters for move left/right)
@@ -95,7 +95,7 @@ def main():
 
         st.subheader("Database Status")
         job_count = st.session_state.db.query(Job).count()
-        edit_pack_count = st.session_state.db.query(EditPack).filter(EditPack.approved == 0).count()
+        edit_pack_count = st.session_state.db.query(EditPack).filter(EditPack.approved == EDIT_PACK_PENDING).count()
         st.metric("Jobs Processed", job_count)
         st.metric("Pending Edit Packs", edit_pack_count)
 
@@ -286,7 +286,7 @@ def main():
         logger.info("Loading pending edit packs")
         pending_packs = (
             st.session_state.db.query(EditPack)
-            .filter(EditPack.approved == 0)
+            .filter(EditPack.approved == EDIT_PACK_PENDING)
             .join(Job)
             .options(joinedload(EditPack.job).joinedload(Job.requirements))
             .order_by(EditPack.fit_score.desc())
