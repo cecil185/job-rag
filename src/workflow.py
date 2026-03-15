@@ -135,6 +135,21 @@ class Workflow:
                     results.append(result)
                 except Exception as e:
                     self.db.rollback()
+                    try:
+                        existing = self.db.query(Job).filter(Job.url == url).first()
+                        if existing:
+                            existing.status = "could_not_extract"
+                        else:
+                            stub = Job(
+                                url=url,
+                                raw_text=None,
+                                meta_data={},
+                                status="could_not_extract",
+                            )
+                            self.db.add(stub)
+                        self.db.commit()
+                    except Exception:
+                        self.db.rollback()
                     results.append({
                         "url": url,
                         "status": "error",
