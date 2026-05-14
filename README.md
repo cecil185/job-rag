@@ -38,6 +38,36 @@ A resume editor that uses Evidence RAG and Style RAG to help tailor your resume 
 
 4. Access Streamlit UI at http://localhost:8501
 
+## Deploy (Fly.io + Neon)
+
+The walking-skeleton deployment is single-container Streamlit on Fly.io backed by Neon Postgres (pgvector enabled). A shared `APP_PASSCODE` gates the app.
+
+### Required env vars / Fly secrets
+
+| Var | Purpose |
+| --- | --- |
+| `OPENAI_API_KEY` | OpenAI access |
+| `DATABASE_URL` | Neon connection string (must include `?sslmode=require`) |
+| `APP_PASSCODE` | Shared passcode for alpha access |
+
+### Provision Neon
+
+1. Create a Neon project and copy the connection string.
+2. In the Neon SQL editor: `CREATE EXTENSION IF NOT EXISTS vector;`
+3. Verify: `psql "$DATABASE_URL" -c "SELECT extversion FROM pg_extension WHERE extname='vector';"`
+
+### Deploy to Fly
+
+```bash
+fly launch --no-deploy           # scaffold fly.toml (port 8501, healthcheck /_stcore/health)
+fly secrets set OPENAI_API_KEY=... DATABASE_URL=postgresql://... APP_PASSCODE=...
+fly deploy
+fly ssh console -C "poetry run python scripts/init_db.py"   # one-time schema init
+```
+
+Verify: `curl -I https://<app>.fly.dev/_stcore/health` returns `200`.
+
+
 ## Usage
 
 ### Streamlit UI
