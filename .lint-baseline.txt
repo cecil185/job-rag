@@ -1,0 +1,33 @@
+# Grandfathered violations of rules enforced by scripts/lint_conventions.py.
+# Format: `<rule-id> <path>` (one per line). Lines starting with `#` are ignored.
+# New code MUST NOT add entries — fix the code instead. Reducing this file is
+# always welcome; doing so is the canonical task for the slop-gardener agent.
+# See docs/eng/conventions.md for rule definitions.
+
+no-top-docstring src/application_answer_generator.py
+no-top-docstring src/audit.py
+no-top-docstring src/bookmarks.py
+no-top-docstring src/chunker.py
+no-top-docstring src/config.py
+no-top-docstring src/cover_letter_critic.py
+no-top-docstring src/cover_letter_generator.py
+no-top-docstring src/cover_letter_reviser.py
+no-top-docstring src/database.py
+no-top-docstring src/edit_pack_generator.py
+no-top-docstring src/embeddings.py
+no-top-docstring src/evals/__init__.py
+no-top-docstring src/evals/metrics.py
+no-top-docstring src/evidence_rag.py
+no-top-docstring src/job_fetcher.py
+no-top-docstring src/prompt_helpers.py
+no-top-docstring src/prompt_loader.py
+no-top-docstring src/requirement_extractor.py
+no-top-docstring src/style_rag.py
+no-top-docstring src/test_sample.py
+no-top-docstring src/workflow.py
+no-top-docstring app.py
+no-top-docstring cli.py
+no-top-docstring scripts/export_job_fixtures.py
+no-top-docstring scripts/init_db.py
+no-top-docstring scripts/pdf_to_txt.py
+no-top-docstring scripts/run_evals.py

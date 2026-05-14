@@ -1,0 +1,32 @@
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    name: lint + typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Install dev tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff==0.6.9 mypy==1.7.0
+
+      - name: Lint
+        run: just lint
+
+      - name: Typecheck
+        run: just typecheck

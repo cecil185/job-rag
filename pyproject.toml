@@ -27,9 +27,34 @@ tiktoken = "^0.8.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
+ruff = "^0.6.9"
+mypy = "^1.7.0"
+pre-commit = "^3.7.0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["data", "prompts", "prompts_dev", "__pycache__", "worktree-*", ".worktrees"]
+
+[tool.ruff.lint]
+# Start conservative: real errors, unused code, import order, common bugs, py-version upgrades.
+# Expand the rule set once the baseline is clean. New rules should ship with a clear
+# remediation message so agents can self-correct without human input.
+select = ["E", "F", "I", "B", "UP"]
+ignore = [
+    "E501",  # line length handled by formatter
+    "B008",  # Typer/FastAPI-style default-arg calls are intentional
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B"]
+"scripts/**" = ["B"]
+
+[tool.ruff.format]
+quote-style = "double"
 
 [build-system]
 requires = ["poetry-core"]

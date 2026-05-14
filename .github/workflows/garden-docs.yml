@@ -1,0 +1,37 @@
+name: garden-docs
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"  # Mondays 12:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  garden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Configure git
+        run: |
+          git config user.name "doc-gardener"
+          git config user.email "noreply@github.com"
+
+      - name: Run doc gardener
+        env:
+          GARDEN_OPEN_PR: "1"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/gardening/garden_docs.sh

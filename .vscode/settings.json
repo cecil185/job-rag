@@ -1,7 +1,11 @@
 {
   "workbench.colorTheme": "Default High Contrast Light",
   "workbench.colorCustomizations": {
-    "editor.background":"#fffbf8",
-    "terminal.background":"#dfd4d4",
+    "editor.background": "#fffbf8",
+    "terminal.background": "#dfd4d4",
+    "diffEditor.insertedTextBackground": "#22863a33",
+    "diffEditor.insertedLineBackground": "#22863a26",
+    "diffEditor.removedTextBackground": "#d7373733",
+    "diffEditor.removedLineBackground": "#d7373726"
   }
 }
