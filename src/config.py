@@ -10,6 +10,8 @@ class Settings(BaseSettings):  # type: ignore[misc]
     database_url: str = "postgresql://jobrag:jobrag_password@postgres:5432/jobrag_db"
     openai_api_key: Optional[str] = None
 
+    app_passcode: Optional[str] = None
+
     # Embedding settings
     embedding_model: str = "text-embedding-3-small"
     embedding_dimension: int = 1536

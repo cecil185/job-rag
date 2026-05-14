@@ -7,6 +7,8 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import Session
 
 from scripts.pdf_to_txt import pdf_to_text
+
+from src.auth import require_passcode
 from src.database import EditPack
 from src.database import get_db
 from src.database import Job
@@ -23,22 +25,28 @@ logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="Job RAG - Resume Editor", layout="wide")
 
-# Initialize session state
-if "workflow" not in st.session_state:
-    logger.info("Creating workflow and db session")
-    db = next(get_db())
-    st.session_state.workflow = Workflow(db)
-    st.session_state.db = db
 
-if "evidence_rag" not in st.session_state:
-    logger.info("Creating EvidenceRAG")
-    st.session_state.evidence_rag = EvidenceRAG(st.session_state.db)
+def _init_session_state():
+    if "workflow" not in st.session_state:
+        logger.info("Creating workflow and db session")
+        db = next(get_db())
+        st.session_state.workflow = Workflow(db)
+        st.session_state.db = db
 
-st.session_state.setdefault("failed_extractions", [])
-st.session_state.setdefault("last_role_tags", [])
+    if "evidence_rag" not in st.session_state:
+        logger.info("Creating EvidenceRAG")
+        st.session_state.evidence_rag = EvidenceRAG(st.session_state.db)
+
+    st.session_state.setdefault("failed_extractions", [])
+    st.session_state.setdefault("last_role_tags", [])
 
 
 def main():
+    if not require_passcode():
+        st.stop()
+
+    _init_session_state()
+
     # Clear any aborted transaction from a previous failed query so the session is usable
     try:
         st.session_state.db.rollback()
