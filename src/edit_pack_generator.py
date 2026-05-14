@@ -10,9 +10,9 @@ from openai import OpenAI
 from src.config import settings
 from src.database import Job
 from src.database import Requirement
-from src.prompt_loader import load_prompt
 from src.evidence_rag import EvidenceRAG
 from src.prompt_helpers import format_requirements
+from src.prompt_loader import load_prompt
 from src.style_rag import StyleRAG
 
 logger = logging.getLogger(__name__)

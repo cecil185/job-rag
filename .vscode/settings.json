@@ -1,0 +1,7 @@
+{
+  "workbench.colorTheme": "Default High Contrast Light",
+  "workbench.colorCustomizations": {
+    "editor.background":"#fffbf8",
+    "terminal.background":"#dfd4d4",
+  }
+}

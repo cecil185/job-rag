@@ -3,11 +3,10 @@ import io
 import logging
 
 import streamlit as st
-from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import Session
 
 from scripts.pdf_to_txt import pdf_to_text
-
 from src.database import EditPack
 from src.database import get_db
 from src.database import Job
